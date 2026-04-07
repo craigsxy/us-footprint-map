@@ -1,6 +1,6 @@
 /**
  * USMap — Main D3-powered SVG map component
- * Design: Deep Space / Data Observatory
+ * Design: Clean Light / Cartographic
  * Uses US Atlas TopoJSON (10m resolution) for accurate state boundaries
  * AlbersUSA projection handles AK/HI insets automatically
  *
@@ -51,9 +51,9 @@ interface USMapProps {
 }
 
 // Build FIPS → info lookup
-const fipsToInfo: Record<string, { name: string; abbr: string }> = {};
+const fipsToInfo: Record<string, { name: string; abbr: string; nameZh: string }> = {};
 US_STATES.forEach((s) => {
-  fipsToInfo[s.fips] = { name: s.name, abbr: s.abbr };
+  fipsToInfo[s.fips] = { name: s.name, abbr: s.abbr, nameZh: s.nameZh };
 });
 
 export default function USMap({
@@ -176,7 +176,7 @@ export default function USMap({
             "filter",
             config.id === "unvisited"
               ? "brightness(1.5)"
-              : `drop-shadow(0 0 6px ${config.glowColor}99) brightness(1.3)`
+              : `drop-shadow(0 0 6px ${config.borderColor}99) brightness(1.3)`
           );
 
         const info = fipsToInfo[fips] ?? { name: `State ${fips}`, abbr: fips };
@@ -222,7 +222,7 @@ export default function USMap({
       .attr("class", "borders")
       .attr("d", path as any)
       .attr("fill", "none")
-      .attr("stroke", "#0a0e1a")
+      .attr("stroke", "#e5e7eb")
       .attr("stroke-width", 0.7)
       .attr("stroke-linejoin", "round")
       .style("pointer-events", "none");
@@ -234,9 +234,58 @@ export default function USMap({
       .attr("class", "nation")
       .attr("d", path as any)
       .attr("fill", "none")
-      .attr("stroke", "#1e3a5f")
+      .attr("stroke", "#9ca3af")
       .attr("stroke-width", 1.2)
       .style("pointer-events", "none");
+
+    // Add state labels (abbr + Chinese name)
+    g.selectAll<SVGGElement, GeoJSON.Feature>("g.state-label")
+      .data(features)
+      .join("g")
+      .attr("class", "state-label")
+      .attr("data-fips", (d) => String(d.id).padStart(2, "0"))
+      .style("pointer-events", "none")
+      .each(function (d) {
+        const fips = String(d.id).padStart(2, "0");
+        if (fips === DC_FIPS) return; // DC handled by overlay
+        
+        const stateInfo = fipsToInfo[fips];
+        if (!stateInfo) return;
+        
+        const centroid = path.centroid(d as any);
+        if (!centroid || isNaN(centroid[0])) return;
+        
+        const g = d3.select(this);
+        const status = getStatusRef.current(fips);
+        const config = getStatusConfig(status);
+        
+        // Abbreviation (top line)
+        g.append("text")
+          .attr("x", centroid[0])
+          .attr("y", centroid[1] - 4)
+          .attr("text-anchor", "middle")
+          .attr("dominant-baseline", "middle")
+          .attr("font-family", "'JetBrains Mono', monospace")
+          .attr("font-size", "11px")
+          .attr("font-weight", "700")
+          .attr("letter-spacing", "0.05em")
+          .attr("fill", config.textColor)
+          .attr("opacity", 0.9)
+          .text(stateInfo.abbr);
+        
+        // Chinese name (bottom line)
+        g.append("text")
+          .attr("x", centroid[0])
+          .attr("y", centroid[1] + 6)
+          .attr("text-anchor", "middle")
+          .attr("dominant-baseline", "middle")
+          .attr("font-family", "'Space Grotesk', sans-serif")
+          .attr("font-size", "8px")
+          .attr("font-weight", "500")
+          .attr("fill", config.textColor)
+          .attr("opacity", 0.8)
+          .text(stateInfo.nameZh);
+      });
 
     // Compute DC overlay position
     computeDcPos(projection, features);
@@ -270,9 +319,9 @@ export default function USMap({
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
           <div
             className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
-            style={{ borderColor: "#1e3a5f", borderTopColor: "#00d4ff" }}
+            style={{ borderColor: "#e5e7eb", borderTopColor: "#0369a1" }}
           />
-          <div className="text-xs font-mono" style={{ color: "#475569" }}>
+          <div className="text-xs font-mono" style={{ color: "#9ca3af" }}>
             Loading map data...
           </div>
         </div>
@@ -340,7 +389,7 @@ export default function USMap({
               y1="32"
               x2="73"
               y2="57"
-              stroke={dcHover ? "#cbd5e1" : "#64748b"}
+              stroke={dcHover ? "#9ca3af" : "#d1d5db"}
               strokeWidth="1"
               strokeDasharray="3,2"
             />
@@ -348,7 +397,7 @@ export default function USMap({
             <polyline
               points="67,54 73,57 70,51"
               fill="none"
-              stroke={dcHover ? "#cbd5e1" : "#64748b"}
+              stroke={dcHover ? "#9ca3af" : "#d1d5db"}
               strokeWidth="1"
               strokeLinejoin="round"
             />
@@ -363,15 +412,15 @@ export default function USMap({
                 dcVisited
                   ? `${dcConfig.color}ee`
                   : dcHover
-                  ? "#0e1a2e"
-                  : "#0a0e1a"
+                  ? "#f3f4f6"
+                  : "#ffffff"
               }
               stroke={
                 dcVisited
-                  ? `${dcConfig.glowColor}88`
+                  ? `${dcConfig.borderColor}88`
                   : dcHover
-                  ? "#94a3b8"
-                  : "#1e3a5f"
+                  ? "#9ca3af"
+                  : "#e5e7eb"
               }
               strokeWidth="1"
             />
@@ -383,10 +432,10 @@ export default function USMap({
               dominantBaseline="middle"
               fill={
                 dcVisited
-                  ? dcConfig.glowColor
+                  ? dcConfig.borderColor
                   : dcHover
-                  ? "#e2e8f0"
-                  : "#94a3b8"
+                  ? "#1f2937"
+                  : "#9ca3af"
               }
               fontSize="9"
               fontFamily="'JetBrains Mono', monospace"
@@ -402,7 +451,7 @@ export default function USMap({
                 y="29"
                 textAnchor="middle"
                 dominantBaseline="middle"
-                fill={dcConfig.glowColor}
+                fill={dcConfig.borderColor}
                 fontSize="6.5"
                 fontFamily="'JetBrains Mono', monospace"
                 opacity="0.85"
@@ -417,12 +466,12 @@ export default function USMap({
               r={dcHover ? 5 : 3.5}
               fill={
                 dcVisited
-                  ? dcConfig.glowColor
+                  ? dcConfig.borderColor
                   : dcHover
-                  ? "#00d4ff"
-                  : "#38bdf8"
+                  ? "#0369a1"
+                  : "#06b6d4"
               }
-              stroke="#0a0e1a"
+              stroke="#ffffff"
               strokeWidth="1"
               style={{ transition: "r 0.15s, fill 0.15s" }}
             />
@@ -433,7 +482,7 @@ export default function USMap({
                 cy="60"
                 r="9"
                 fill="none"
-                stroke={dcVisited ? dcConfig.glowColor : "#00d4ff"}
+                stroke={dcVisited ? dcConfig.borderColor : "#00d4ff"}
                 strokeWidth="1"
                 opacity="0.3"
               />
@@ -452,18 +501,17 @@ export default function USMap({
               }}
             >
               <div
-                className="rounded-xl px-3.5 py-2.5 shadow-2xl"
+                className="rounded-xl px-3.5 py-2.5 shadow-lg"
                 style={{
-                  background: "rgba(8,12,22,0.96)",
-                  backdropFilter: "blur(12px)",
+                  background: "#ffffff",
                   border: `1px solid ${
                     dcVisited
-                      ? `${dcConfig.glowColor}44`
-                      : "rgba(30,58,95,0.6)"
+                      ? `${dcConfig.borderColor}44`
+                      : "#e5e7eb"
                   }`,
                   boxShadow: dcVisited
-                    ? `0 0 20px ${dcConfig.glowColor}22, 0 4px 20px rgba(0,0,0,0.5)`
-                    : "0 4px 20px rgba(0,0,0,0.5)",
+                    ? `0 0 20px ${dcConfig.borderColor}11, 0 4px 12px rgba(0,0,0,0.08)`
+                    : "0 4px 12px rgba(0,0,0,0.08)",
                   minWidth: "160px",
                 }}
               >
@@ -471,8 +519,8 @@ export default function USMap({
                   <span
                     className="text-[11px] font-mono font-semibold px-1.5 py-0.5 rounded"
                     style={{
-                      background: "rgba(30,58,95,0.4)",
-                      color: "#94a3b8",
+                      background: "#f0f9ff",
+                      color: "#0369a1",
                     }}
                   >
                     DC
@@ -480,7 +528,7 @@ export default function USMap({
                   <span
                     className="text-[13px] font-semibold leading-tight"
                     style={{
-                      color: "#e2e8f0",
+                      color: "#1f2937",
                       fontFamily: "'Space Grotesk', sans-serif",
                     }}
                   >
@@ -494,18 +542,18 @@ export default function USMap({
                       background: dcConfig.color,
                       border: `1px solid ${
                         dcVisited
-                          ? `${dcConfig.glowColor}66`
+                          ? `${dcConfig.borderColor}66`
                           : "rgba(30,58,95,0.6)"
                       }`,
                       boxShadow: dcVisited
-                        ? `0 0 4px ${dcConfig.glowColor}`
+                        ? `0 0 4px ${dcConfig.borderColor}`
                         : "none",
                     }}
                   />
                   <span
                     className="text-[11px] font-mono"
                     style={{
-                      color: dcVisited ? dcConfig.glowColor : "#475569",
+                      color: dcVisited ? dcConfig.borderColor : "#475569",
                     }}
                   >
                     {dcConfig.labelZh} · {dcConfig.label}
@@ -514,8 +562,8 @@ export default function USMap({
                 <div
                   className="text-[10px] font-mono mt-1.5 pt-1.5 border-t"
                   style={{
-                    color: "#334155",
-                    borderColor: "rgba(30,58,95,0.3)",
+                    color: "#9ca3af",
+                    borderColor: "#e5e7eb",
                   }}
                 >
                   Left click: next · Right click: choose
@@ -537,19 +585,18 @@ export default function USMap({
           }}
         >
           <div
-            className="rounded-xl px-3.5 py-2.5 shadow-2xl"
+            className="rounded-xl px-3.5 py-2.5 shadow-lg"
             style={{
-              background: "rgba(8,12,22,0.96)",
-              backdropFilter: "blur(12px)",
+              background: "#ffffff",
               border: `1px solid ${
                 tooltip.status === "unvisited"
-                  ? "rgba(30,58,95,0.6)"
-                  : `${tooltipConfig.glowColor}44`
+                  ? "#e5e7eb"
+                  : `${tooltipConfig.borderColor}44`
               }`,
               boxShadow:
                 tooltip.status !== "unvisited"
-                  ? `0 0 20px ${tooltipConfig.glowColor}22, 0 4px 20px rgba(0,0,0,0.5)`
-                  : "0 4px 20px rgba(0,0,0,0.5)",
+                  ? `0 0 20px ${tooltipConfig.borderColor}11, 0 4px 12px rgba(0,0,0,0.08)`
+                  : "0 4px 12px rgba(0,0,0,0.08)",
               minWidth: "140px",
             }}
           >
@@ -557,8 +604,8 @@ export default function USMap({
               <span
                 className="text-[11px] font-mono font-semibold px-1.5 py-0.5 rounded"
                 style={{
-                  background: "rgba(30,58,95,0.4)",
-                  color: "#94a3b8",
+                  background: "#f0f9ff",
+                  color: "#0369a1",
                 }}
               >
                 {tooltip.abbr}
@@ -566,7 +613,7 @@ export default function USMap({
               <span
                 className="text-[13px] font-semibold leading-tight"
                 style={{
-                  color: "#e2e8f0",
+                  color: "#1f2937",
                   fontFamily: "'Space Grotesk', sans-serif",
                 }}
               >
@@ -580,12 +627,12 @@ export default function USMap({
                   background: tooltipConfig.color,
                   border: `1px solid ${
                     tooltip.status === "unvisited"
-                      ? "rgba(30,58,95,0.6)"
-                      : `${tooltipConfig.glowColor}66`
+                      ? "#e5e7eb"
+                      : `${tooltipConfig.borderColor}66`
                   }`,
                   boxShadow:
                     tooltip.status !== "unvisited"
-                      ? `0 0 4px ${tooltipConfig.glowColor}`
+                      ? `0 0 4px ${tooltipConfig.borderColor}`
                       : "none",
                 }}
               />
@@ -594,8 +641,8 @@ export default function USMap({
                 style={{
                   color:
                     tooltip.status === "unvisited"
-                      ? "#475569"
-                      : tooltipConfig.glowColor,
+                      ? "#9ca3af"
+                      : tooltipConfig.borderColor,
                 }}
               >
                 {tooltipConfig.labelZh} · {tooltipConfig.label}
@@ -604,8 +651,8 @@ export default function USMap({
             <div
               className="text-[10px] font-mono mt-1.5 pt-1.5 border-t"
               style={{
-                color: "#334155",
-                borderColor: "rgba(30,58,95,0.3)",
+                color: "#9ca3af",
+                borderColor: "#e5e7eb",
               }}
             >
               Left click: next · Right click: choose
@@ -616,11 +663,11 @@ export default function USMap({
             <div
               className="w-3 h-3 rotate-45 -translate-y-1.5 mx-auto"
               style={{
-                background: "rgba(8,12,22,0.96)",
+                background: "#ffffff",
                 border: `1px solid ${
                   tooltip.status === "unvisited"
-                    ? "rgba(30,58,95,0.6)"
-                    : `${tooltipConfig.glowColor}44`
+                    ? "#e5e7eb"
+                    : `${tooltipConfig.borderColor}44`
                 }`,
               }}
             />

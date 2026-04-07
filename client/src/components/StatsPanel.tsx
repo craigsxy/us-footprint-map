@@ -1,6 +1,6 @@
 /**
  * StatsPanel — Shows visit statistics with animated counters
- * Design: Deep Space / Data Observatory
+ * Design: Clean Light / Cartographic
  */
 import { FootprintStatus, STATUS_CONFIGS } from "@/lib/footprintData";
 
@@ -25,13 +25,13 @@ export default function StatsPanel({ stats, onReset }: StatsPanelProps) {
       <div
         className="rounded-xl p-3"
         style={{
-          background: "rgba(0, 212, 255, 0.04)",
-          border: "1px solid rgba(0, 212, 255, 0.12)",
+          background: "#f0f9ff",
+          border: "1px solid #bfdbfe",
         }}
       >
         <div
           className="text-[10px] font-mono uppercase tracking-widest mb-2"
-          style={{ color: "#475569" }}
+          style={{ color: "#6b7280" }}
         >
           Visited
         </div>
@@ -39,47 +39,43 @@ export default function StatsPanel({ stats, onReset }: StatsPanelProps) {
           <span
             className="text-4xl font-bold font-mono leading-none"
             style={{
-              color: "#00d4ff",
-              textShadow: "0 0 20px rgba(0,212,255,0.4)",
+              color: "#0369a1",
             }}
           >
             {stats.visited}
           </span>
           <span
             className="font-mono text-sm mb-1"
-            style={{ color: "#334155" }}
+            style={{ color: "#9ca3af" }}
           >
             / {stats.total}
           </span>
         </div>
-        {/* Progress bar */}
-        <div
-          className="h-1.5 rounded-full overflow-hidden"
-          style={{ background: "rgba(30,58,95,0.4)" }}
-        >
-          <div
-            className="h-full rounded-full transition-all duration-700 ease-out"
-            style={{
-              width: `${percentage}%`,
-              background: "linear-gradient(90deg, #0891b2, #00d4ff)",
-              boxShadow: "0 0 8px rgba(0,212,255,0.5)",
-            }}
-          />
-        </div>
-        <div
-          className="text-[10px] font-mono mt-1.5"
-          style={{ color: "#334155" }}
-        >
+        <div className="text-[10px] font-mono" style={{ color: "#9ca3af" }}>
           {percentage}% of all 56 regions
         </div>
       </div>
 
-      {/* Per-status breakdown */}
+      {/* Progress bar */}
+      <div
+        className="rounded-full overflow-hidden h-1.5"
+        style={{ background: "#e5e7eb" }}
+      >
+        <div
+          className="h-full transition-all duration-500 rounded-full"
+          style={{
+            width: `${percentage}%`,
+            background: "linear-gradient(90deg, #06b6d4, #0369a1, #3b82f6)",
+          }}
+        />
+      </div>
+
+      {/* Breakdown */}
       {activeStatuses.length > 0 && (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           <div
-            className="text-[10px] font-mono uppercase tracking-widest mb-0.5 px-1"
-            style={{ color: "#475569" }}
+            className="text-[10px] font-mono uppercase tracking-widest"
+            style={{ color: "#6b7280" }}
           >
             Breakdown
           </div>
@@ -93,34 +89,32 @@ export default function StatsPanel({ stats, onReset }: StatsPanelProps) {
                     <div
                       className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                       style={{
-                        background: config.glowColor,
-                        boxShadow: `0 0 4px ${config.glowColor}`,
+                        background: config.borderColor,
                       }}
                     />
                     <span
                       className="text-[11px] font-mono"
-                      style={{ color: "#94a3b8" }}
+                      style={{ color: "#6b7280" }}
                     >
                       {config.labelZh}
                     </span>
                   </div>
                   <span
                     className="text-[12px] font-mono font-semibold"
-                    style={{ color: config.glowColor }}
+                    style={{ color: config.borderColor }}
                   >
                     {count}
                   </span>
                 </div>
                 <div
                   className="h-0.5 rounded-full overflow-hidden"
-                  style={{ background: "rgba(30,58,95,0.3)" }}
+                  style={{ background: "#e5e7eb" }}
                 >
                   <div
                     className="h-full rounded-full transition-all duration-500"
                     style={{
                       width: `${pct}%`,
-                      background: config.glowColor,
-                      boxShadow: `0 0 4px ${config.glowColor}`,
+                      background: config.borderColor,
                       opacity: 0.7,
                     }}
                   />
@@ -133,40 +127,16 @@ export default function StatsPanel({ stats, onReset }: StatsPanelProps) {
 
       {stats.visited === 0 && (
         <div
-          className="text-[11px] font-mono px-1 py-2 text-center rounded-lg"
+          className="rounded-lg p-2 text-center"
           style={{
-            color: "#334155",
-            background: "rgba(30,58,95,0.1)",
-            border: "1px dashed rgba(30,58,95,0.3)",
+            background: "#f3f4f6",
+            border: "1px solid #e5e7eb",
           }}
         >
-          Click any state to begin
+          <div className="text-[10px] font-mono" style={{ color: "#9ca3af" }}>
+            Click any state to begin
+          </div>
         </div>
-      )}
-
-      {/* Reset button */}
-      {stats.visited > 0 && (
-        <button
-          onClick={onReset}
-          className="w-full text-[11px] font-mono py-1.5 rounded-lg transition-all duration-200"
-          style={{
-            color: "#475569",
-            border: "1px solid rgba(30,58,95,0.3)",
-            background: "transparent",
-          }}
-          onMouseEnter={(e) => {
-            (e.target as HTMLButtonElement).style.color = "#ef4444";
-            (e.target as HTMLButtonElement).style.borderColor =
-              "rgba(239,68,68,0.3)";
-          }}
-          onMouseLeave={(e) => {
-            (e.target as HTMLButtonElement).style.color = "#475569";
-            (e.target as HTMLButtonElement).style.borderColor =
-              "rgba(30,58,95,0.3)";
-          }}
-        >
-          Reset All Data
-        </button>
       )}
     </div>
   );

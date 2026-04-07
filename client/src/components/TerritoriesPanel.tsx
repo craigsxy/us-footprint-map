@@ -1,13 +1,14 @@
 /**
- * TerritoriesPanel — Displays 5 US overseas territories as interactive cards
- * Design: Deep Space / Data Observatory
+ * TerritoriesPanel — Displays 5 US territories with click handlers
+ * Design: Clean Light / Cartographic
  */
-import { FootprintStatus, getStatusConfig, US_TERRITORIES } from "@/lib/footprintData";
+import { useCallback } from "react";
+import { getStatusConfig, US_TERRITORIES, FootprintStatus } from "@/lib/footprintData";
 
 interface TerritoriesPanelProps {
   getStatus: (id: string) => FootprintStatus;
   onTerritoryClick: (id: string) => void;
-  onTerritoryRightClick?: (id: string, x: number, y: number) => void;
+  onTerritoryRightClick: (id: string, x: number, y: number) => void;
 }
 
 export default function TerritoriesPanel({
@@ -15,45 +16,42 @@ export default function TerritoriesPanel({
   onTerritoryClick,
   onTerritoryRightClick,
 }: TerritoriesPanelProps) {
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent, id: string) => {
+      e.preventDefault();
+      onTerritoryRightClick(id, e.clientX, e.clientY);
+    },
+    [onTerritoryRightClick]
+  );
+
   return (
     <div className="flex flex-col gap-2">
       <div
-        className="text-[10px] font-mono uppercase tracking-widest mb-1 px-1"
-        style={{ color: "#475569" }}
+        className="text-[10px] font-mono uppercase tracking-widest px-1"
+        style={{ color: "#6b7280" }}
       >
         Territories
-      </div>
-      <div
-        className="text-[9px] font-mono px-1 mb-1"
-        style={{ color: "#1e3a5f" }}
-      >
-        5 overseas territories
       </div>
       {US_TERRITORIES.map((territory) => {
         const status = getStatus(territory.id);
         const config = getStatusConfig(status);
         const isVisited = status !== "unvisited";
+
         return (
           <button
             key={territory.id}
             onClick={() => onTerritoryClick(territory.id)}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              onTerritoryRightClick?.(territory.id, e.clientX, e.clientY);
-            }}
-            className="group flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl text-left transition-all duration-200"
+            onContextMenu={(e) => handleContextMenu(e, territory.id)}
+            className="flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-150"
             style={{
               background: isVisited
-                ? `${config.color}dd`
-                : "rgba(17,24,39,0.6)",
+                ? `${config.color}22`
+                : "#f9fafb",
               border: `1px solid ${
                 isVisited
-                  ? `${config.glowColor}33`
-                  : "rgba(30,58,95,0.3)"
+                  ? `${config.borderColor}33`
+                  : "#e5e7eb"
               }`,
-              boxShadow: isVisited
-                ? `0 0 12px ${config.glowColor}18`
-                : "none",
             }}
             title={`${territory.name} — Left click to cycle, right click to set`}
           >
@@ -64,7 +62,7 @@ export default function TerritoriesPanel({
               <div
                 className="text-[12px] font-semibold leading-tight"
                 style={{
-                  color: isVisited ? "#e2e8f0" : "#64748b",
+                  color: isVisited ? "#1f2937" : "#9ca3af",
                   fontFamily: "'Space Grotesk', sans-serif",
                 }}
               >
@@ -73,7 +71,7 @@ export default function TerritoriesPanel({
               <div
                 className="text-[9px] font-mono leading-tight mt-0.5 truncate"
                 style={{
-                  color: isVisited ? config.glowColor : "#334155",
+                  color: isVisited ? config.borderColor : "#9ca3af",
                 }}
               >
                 {isVisited ? config.labelZh : territory.name.split(" ").slice(0, 2).join(" ")}
@@ -83,10 +81,7 @@ export default function TerritoriesPanel({
             <div
               className="w-2 h-2 rounded-full flex-shrink-0 transition-all duration-200"
               style={{
-                background: isVisited ? config.glowColor : "#1e3a5f",
-                boxShadow: isVisited
-                  ? `0 0 6px ${config.glowColor}`
-                  : "none",
+                background: isVisited ? config.borderColor : "#d1d5db",
               }}
             />
           </button>
@@ -94,7 +89,7 @@ export default function TerritoriesPanel({
       })}
       <div
         className="text-[9px] font-mono mt-1 px-1"
-        style={{ color: "#1e3a5f" }}
+        style={{ color: "#d1d5db" }}
       >
         Right-click to set status directly
       </div>
