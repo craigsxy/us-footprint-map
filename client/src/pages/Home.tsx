@@ -17,7 +17,14 @@ import {
   US_STATES,
   US_TERRITORIES,
 } from "@/lib/footprintData";
-import { Map, RotateCcw, ChevronLeft, ChevronRight, X } from "lucide-react";
+import {
+  Map,
+  RotateCcw,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  X,
+} from "lucide-react";
 
 const DC_FIPS = "11";
 
@@ -41,6 +48,8 @@ export default function Home() {
   const { getStatus, cycleStatus, setStatus, resetAll, stats } = useFootprint();
   const isLg = useMediaQuery("(min-width: 1024px)");
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
+  /** Mobile: 首都和海外领地 strip 默认折叠 */
+  const [mobileCapTerrOpen, setMobileCapTerrOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     visible: false,
     x: 0,
@@ -305,21 +314,44 @@ export default function Home() {
           <Legend compact />
         </div>
 
-        {/* Mobile — strip 2: 首都 + 海外领地，一行三个 */}
+        {/* Mobile — strip 2: 首都 + 海外领地，默认折叠，右侧箭头展开 */}
         <div
-          className="flex-shrink-0 border-b px-3 py-2.5 lg:hidden"
+          className="flex-shrink-0 border-b px-3 py-2 lg:hidden"
           style={{
             background: "#ffffff",
             borderColor: "#e5e7eb",
           }}
         >
-          <div
-            className="text-[9px] font-mono uppercase tracking-wide mb-2"
-            style={{ color: "#6b7280" }}
+          <button
+            type="button"
+            className="flex w-full items-center justify-between gap-2 rounded-md py-1 text-left transition-colors active:bg-gray-50"
+            onClick={() => setMobileCapTerrOpen((v) => !v)}
+            aria-expanded={mobileCapTerrOpen}
+            aria-controls="mobile-cap-territories-panel"
+            id="mobile-cap-territories-toggle"
           >
-            首都和海外领地
-          </div>
-          <div className="grid grid-cols-3 gap-2 w-full">
+            <span
+              className="text-[9px] font-mono uppercase tracking-wide"
+              style={{ color: "#6b7280" }}
+            >
+              首都和海外领地
+            </span>
+            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center text-gray-500">
+              {mobileCapTerrOpen ? (
+                <ChevronUp size={18} strokeWidth={2} aria-hidden />
+              ) : (
+                <ChevronRight size={18} strokeWidth={2} aria-hidden />
+              )}
+            </span>
+          </button>
+          {mobileCapTerrOpen ? (
+            <>
+          <div
+            id="mobile-cap-territories-panel"
+            role="region"
+            aria-labelledby="mobile-cap-territories-toggle"
+            className="grid grid-cols-3 gap-2 w-full pt-2"
+          >
             {MOBILE_CAPITAL_AND_TERRITORIES.map((entry) => {
               if (entry.kind === "dc") {
                 const st = getStatus(DC_FIPS);
@@ -424,11 +456,13 @@ export default function Home() {
             })}
           </div>
           <div
-            className="text-[8px] font-mono mt-2"
+            className="text-[8px] font-mono mt-2 pb-0.5"
             style={{ color: "#9ca3af" }}
           >
             左键循环 · 长按或右键设置
           </div>
+            </>
+          ) : null}
         </div>
 
         {/* Map area */}
