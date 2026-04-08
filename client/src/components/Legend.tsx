@@ -4,7 +4,56 @@
  */
 import { STATUS_CONFIGS } from "@/lib/footprintData";
 
-export default function Legend() {
+interface LegendProps {
+  /** Wrap chips to full width, no horizontal scroll */
+  compact?: boolean;
+}
+
+export default function Legend({ compact = false }: LegendProps) {
+  if (compact) {
+    return (
+      <div className="w-full">
+        <div
+          className="text-[9px] font-mono uppercase tracking-wide mb-1.5"
+          style={{ color: "#9ca3af" }}
+        >
+          图例 · 点击循环顺序
+        </div>
+        <div className="flex flex-wrap gap-x-2 gap-y-1.5">
+          {STATUS_CONFIGS.map((config, idx) => (
+            <div
+              key={config.id}
+              className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5"
+              style={{
+                background:
+                  config.id === "unvisited" ? "#f9fafb" : `${config.color}18`,
+                border: `1px solid ${
+                  config.id === "unvisited" ? "#e5e7eb" : `${config.borderColor}44`
+                }`,
+              }}
+            >
+              <div
+                className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                style={{
+                  background: config.color,
+                  border: `1px solid ${config.borderColor}`,
+                }}
+              />
+              <span
+                className="text-[10px] font-mono leading-tight"
+                style={{
+                  color: config.id === "unvisited" ? "#9ca3af" : "#374151",
+                }}
+              >
+                {idx}·{config.labelZh}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-1.5">
       <div

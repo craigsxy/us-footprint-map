@@ -9,6 +9,7 @@ import TerritoriesPanel from "@/components/TerritoriesPanel";
 import Legend from "@/components/Legend";
 import StatsPanel from "@/components/StatsPanel";
 import { useFootprint } from "@/hooks/useFootprint";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import {
   FootprintStatus,
   getStatusConfig,
@@ -17,6 +18,8 @@ import {
   US_TERRITORIES,
 } from "@/lib/footprintData";
 import { Map, RotateCcw, ChevronLeft, ChevronRight, X } from "lucide-react";
+
+const DC_FIPS = "11";
 
 interface ContextMenuState {
   visible: boolean;
@@ -28,6 +31,7 @@ interface ContextMenuState {
 
 export default function Home() {
   const { getStatus, cycleStatus, setStatus, resetAll, stats } = useFootprint();
+  const isLg = useMediaQuery("(min-width: 1024px)");
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     visible: false,
@@ -142,13 +146,22 @@ export default function Home() {
               My U.S. Footprint Map
             </h1>
             <p
-              className="text-[11px] mt-0.5 hidden sm:block"
+              className="text-[11px] mt-0.5 hidden lg:block"
               style={{
                 color: "#9ca3af",
                 fontFamily: "'JetBrains Mono', monospace",
               }}
             >
               Click to cycle · Right-click to set directly
+            </p>
+            <p
+              className="text-[10px] mt-0.5 lg:hidden leading-snug"
+              style={{
+                color: "#9ca3af",
+                fontFamily: "'JetBrains Mono', monospace",
+              }}
+            >
+              双指缩放地图 · 点击循环 · 长按选状态
             </p>
           </div>
         </div>
@@ -211,10 +224,10 @@ export default function Home() {
       </header>
 
       {/* Main content */}
-      <div className="relative z-10 flex flex-1 overflow-hidden">
-        {/* Left Panel — Stats + Legend */}
+      <div className="relative z-10 flex flex-1 min-h-0 flex-col overflow-hidden lg:flex-row">
+        {/* Left Panel — desktop only */}
         <div
-          className="relative flex-shrink-0 transition-all duration-300 ease-in-out overflow-hidden"
+          className="relative hidden flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out lg:block"
           style={{ width: leftPanelOpen ? "220px" : "0px" }}
         >
           <div
@@ -236,10 +249,11 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Left panel toggle */}
+        {/* Left panel toggle — desktop only */}
         <button
+          type="button"
           onClick={() => setLeftPanelOpen((v) => !v)}
-          className="absolute top-1/2 -translate-y-1/2 z-20 flex items-center justify-center w-5 h-10 rounded-r-lg transition-all duration-300"
+          className="absolute top-1/2 z-20 hidden w-5 translate-y-1/2 items-center justify-center rounded-r-lg transition-all duration-300 lg:flex"
           style={{
             left: leftPanelOpen ? "220px" : "0px",
             background: "#f9fafb",
@@ -251,21 +265,99 @@ export default function Home() {
           {leftPanelOpen ? <ChevronLeft size={12} /> : <ChevronRight size={12} />}
         </button>
 
+        {/* Mobile — strip 1: stats + legend (wrap, no horizontal scroll) */}
+        <div
+          className="flex-shrink-0 border-b px-3 py-2.5 lg:hidden"
+          style={{
+            background: "#ffffff",
+            borderColor: "#e5e7eb",
+          }}
+        >
+          <StatsPanel stats={stats} onReset={handleReset} compact />
+          <div
+            className="my-2 border-t"
+            style={{ borderColor: "#e5e7eb" }}
+          />
+          <Legend compact />
+        </div>
+
+        {/* Mobile — strip 2: DC + territories */}
+        <div
+          className="flex-shrink-0 space-y-2 border-b px-3 py-2.5 lg:hidden"
+          style={{
+            background: "#ffffff",
+            borderColor: "#e5e7eb",
+          }}
+        >
+          <div className="text-[9px] font-mono uppercase tracking-wide" style={{ color: "#6b7280" }}>
+            华盛顿特区
+          </div>
+          <button
+            type="button"
+            onClick={() => cycleStatus(DC_FIPS)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              handleStateRightClick(DC_FIPS, e.clientX, e.clientY);
+            }}
+            className="flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors duration-150"
+            style={{
+              background: getStatus(DC_FIPS) !== "unvisited"
+                ? `${getStatusConfig(getStatus(DC_FIPS)).color}22`
+                : "#f9fafb",
+              borderColor:
+                getStatus(DC_FIPS) !== "unvisited"
+                  ? `${getStatusConfig(getStatus(DC_FIPS)).borderColor}66`
+                  : "#e5e7eb",
+            }}
+          >
+            <span className="text-lg font-mono font-bold" style={{ color: "#0369a1" }}>
+              DC
+            </span>
+            <div className="min-w-0 flex-1">
+              <div
+                className="text-[12px] font-semibold"
+                style={{ fontFamily: "'Space Grotesk', sans-serif", color: "#1f2937" }}
+              >
+                {US_STATES.find((s) => s.fips === DC_FIPS)?.nameZh ?? "华盛顿特区"}
+              </div>
+              {getStatus(DC_FIPS) !== "unvisited" && (
+                <div
+                  className="mt-0.5 text-[10px] font-mono"
+                  style={{ color: getStatusConfig(getStatus(DC_FIPS)).borderColor }}
+                >
+                  {getStatusConfig(getStatus(DC_FIPS)).labelZh}
+                </div>
+              )}
+            </div>
+          </button>
+          <TerritoriesPanel
+            layout="mobileWrap"
+            getStatus={getStatus}
+            onTerritoryClick={handleTerritoryClick}
+            onTerritoryRightClick={handleTerritoryRightClick}
+          />
+        </div>
+
         {/* Map area */}
-        <div className="flex-1 relative overflow-hidden min-h-0" style={{ background: "#f3f4f6" }}>
-          <div className="absolute inset-0 flex items-center justify-center p-2 sm:p-4">
+        <div
+          className="relative min-h-0 flex-1 overflow-hidden"
+          style={{ background: "#f3f4f6" }}
+        >
+          <div className="absolute inset-0 flex min-h-[200px] items-center justify-center p-2 sm:p-4">
             <USMap
               getStatus={getStatus}
               onStateClick={handleStateClick}
               onStateRightClick={handleStateRightClick}
               width={960}
               height={600}
+              hideDcUi={!isLg}
+              enablePinchZoom={!isLg}
             />
           </div>
 
-          {/* Territories — docked bottom-right on map (replaces right sidebar) */}
+          {/* Territories — desktop only on map */}
           <div
-            className="absolute bottom-2 right-2 z-[12] rounded-xl border shadow-sm p-2 sm:p-2.5 pointer-events-auto w-max max-w-[min(calc(100%-8px),220px)]"
+            className="pointer-events-auto absolute right-2 bottom-2 z-[12] hidden max-w-[min(calc(100%-8px),220px)] rounded-xl border p-2 shadow-sm sm:p-2.5 lg:block w-max"
             style={{
               background: "rgba(255,255,255,0.96)",
               borderColor: "#e5e7eb",
@@ -280,45 +372,10 @@ export default function Home() {
             />
           </div>
 
-          {/* Bottom hint */}
-          <div
-            className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] font-mono text-gray-500 pointer-events-none whitespace-nowrap max-w-[calc(100%-200px)] text-center"
-          >
+          {/* Bottom hint — desktop */}
+          <div className="pointer-events-none absolute bottom-3 left-1/2 hidden max-w-[calc(100%-200px)] -translate-x-1/2 text-center text-[10px] font-mono whitespace-nowrap text-gray-500 lg:block">
             Left click: cycle status · Right click: set directly
           </div>
-        </div>
-      </div>
-
-      {/* Mobile bottom bar */}
-      <div
-        className="sm:hidden relative z-10 flex items-center justify-around px-4 py-2 border-t flex-shrink-0"
-        style={{
-          background: "#ffffff",
-          borderColor: "#e5e7eb",
-        }}
-      >
-        <div className="text-center">
-          <div
-            className="text-xl font-bold font-mono"
-            style={{ color: "#0369a1" }}
-          >
-            {stats.visited}
-          </div>
-          <div className="text-[10px] font-mono text-gray-500">Visited</div>
-        </div>
-        <div className="w-px h-8" style={{ background: "#e5e7eb" }} />
-        <div className="text-center">
-          <div className="text-xl font-bold font-mono text-gray-600">
-            {stats.total - stats.visited}
-          </div>
-          <div className="text-[10px] font-mono text-gray-500">Remaining</div>
-        </div>
-        <div className="w-px h-8" style={{ background: "#e5e7eb" }} />
-        <div className="text-center">
-          <div className="text-xl font-bold font-mono text-gray-600">
-            {Math.round((stats.visited / stats.total) * 100)}%
-          </div>
-          <div className="text-[10px] font-mono text-gray-500">Complete</div>
         </div>
       </div>
 

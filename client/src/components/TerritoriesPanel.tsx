@@ -9,8 +9,8 @@ interface TerritoriesPanelProps {
   getStatus: (id: string) => FootprintStatus;
   onTerritoryClick: (id: string) => void;
   onTerritoryRightClick: (id: string, x: number, y: number) => void;
-  /** Sidebar column vs same column docked map corner (both vertical) */
-  layout?: "sidebar" | "dock";
+  /** sidebar: left column · dock: vertical on map · mobileWrap: wrap rows, full width */
+  layout?: "sidebar" | "dock" | "mobileWrap";
 }
 
 export default function TerritoriesPanel({
@@ -28,26 +28,40 @@ export default function TerritoriesPanel({
   );
 
   const dock = layout === "dock";
+  const mobileWrap = layout === "mobileWrap";
+
+  const titleZh = dock || mobileWrap;
+  const hintZh = dock || mobileWrap;
 
   return (
     <div
       className={
         dock
           ? "flex flex-col gap-2 w-[188px] max-w-full"
-          : "flex flex-col gap-2"
+          : mobileWrap
+            ? "flex flex-col gap-2 w-full"
+            : "flex flex-col gap-2"
       }
     >
       <div
         className={
           dock
             ? "text-[9px] font-mono uppercase tracking-wider px-1 text-right"
-            : "text-[10px] font-mono uppercase tracking-widest px-1"
+            : mobileWrap
+              ? "text-[9px] font-mono uppercase tracking-wider"
+              : "text-[10px] font-mono uppercase tracking-widest px-1"
         }
         style={{ color: "#6b7280" }}
       >
-        {dock ? "海外领地" : "Territories"}
+        {titleZh ? "海外领地" : "Territories"}
       </div>
-      <div className="flex flex-col gap-2 w-full">
+      <div
+        className={
+          mobileWrap
+            ? "flex flex-row flex-wrap gap-2 w-full"
+            : "flex flex-col gap-2 w-full"
+        }
+      >
         {US_TERRITORIES.map((territory) => {
           const status = getStatus(territory.id);
           const config = getStatusConfig(status);
@@ -58,7 +72,11 @@ export default function TerritoriesPanel({
               key={territory.id}
               onClick={() => onTerritoryClick(territory.id)}
               onContextMenu={(e) => handleContextMenu(e, territory.id)}
-              className="flex w-full items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-150"
+              className={
+                mobileWrap
+                  ? "flex flex-1 items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-150 min-w-[calc(50%-4px)] sm:min-w-[140px]"
+                  : "flex w-full items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-150"
+              }
               style={{
                 background: isVisited
                   ? `${config.color}22`
@@ -68,6 +86,7 @@ export default function TerritoriesPanel({
                     ? `${config.borderColor}33`
                     : "#e5e7eb"
                 }`,
+                maxWidth: mobileWrap ? "100%" : undefined,
               }}
               title={`${territory.name} / ${territory.nameZh} — 左键循环 · 右键直接设置`}
             >
@@ -107,11 +126,13 @@ export default function TerritoriesPanel({
         className={
           dock
             ? "text-[8px] font-mono mt-0.5 px-1 text-right"
-            : "text-[9px] font-mono mt-1 px-1"
+            : mobileWrap
+              ? "text-[8px] font-mono mt-0.5"
+              : "text-[9px] font-mono mt-1 px-1"
         }
-        style={{ color: dock ? "#9ca3af" : "#d1d5db" }}
+        style={{ color: hintZh ? "#9ca3af" : "#d1d5db" }}
       >
-        {dock ? "左键循环 · 右键设置" : "Right-click to set status directly"}
+        {hintZh ? "左键循环 · 长按或右键设置" : "Right-click to set status directly"}
       </div>
     </div>
   );

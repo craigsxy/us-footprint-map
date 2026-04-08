@@ -47,6 +47,10 @@ interface USMapProps {
   onStateRightClick?: (fips: string, x: number, y: number) => void;
   width?: number;
   height?: number;
+  /** Mobile: hide pin + corner card; DC is controlled outside / on-map path */
+  hideDcUi?: boolean;
+  /** Mobile: pinch / wheel zoom on map graphics */
+  enablePinchZoom?: boolean;
 }
 
 // Build FIPS → info lookup
@@ -122,9 +126,13 @@ export default function USMap({
   onStateRightClick,
   width = 960,
   height = 600,
+  hideDcUi = false,
+  enablePinchZoom = false,
 }: USMapProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const hideDcUiRef = useRef(hideDcUi);
+  hideDcUiRef.current = hideDcUi;
   /** Tracks hover by hit-target (pointermove), not mouseenter/mouseleave — fixes missed leave in Chrome */
   const hoveredFipsRef = useRef<string | null>(null);
   const [topoData, setTopoData] = useState<TopoData | null>(null);
@@ -224,9 +232,10 @@ export default function USMap({
 
     svg.selectAll("*").remove();
 
-    const gFills = svg.append("g").attr("class", "layer-fills");
-    const gBorders = svg.append("g").attr("class", "layer-borders");
-    const gLabels = svg.append("g").attr("class", "layer-labels");
+    const zoomRoot = svg.append("g").attr("class", "map-zoom-root");
+    const gFills = zoomRoot.append("g").attr("class", "layer-fills");
+    const gBorders = zoomRoot.append("g").attr("class", "layer-borders");
+    const gLabels = zoomRoot.append("g").attr("class", "layer-labels");
 
     const features = (states as unknown as GeoJSON.FeatureCollection).features;
 
@@ -250,13 +259,13 @@ export default function USMap({
       .style("cursor", "pointer")
       .on("click", function (_, d) {
         const fips = String(d.id).padStart(2, "0");
-        if (fips === DC_FIPS) return;
+        if (fips === DC_FIPS && !hideDcUiRef.current) return;
         onStateClick(fips);
       })
       .on("contextmenu", function (event, d) {
         event.preventDefault();
         const fips = String(d.id).padStart(2, "0");
-        if (fips === DC_FIPS) return;
+        if (fips === DC_FIPS && !hideDcUiRef.current) return;
         onStateRightClick?.(fips, event.clientX, event.clientY);
       });
 
@@ -264,7 +273,8 @@ export default function USMap({
       if (!el || typeof el.closest !== "function") return null;
       const path = el.closest("path.state") as SVGPathElement | null;
       const raw = path?.getAttribute("data-fips") ?? null;
-      if (!raw || raw === DC_FIPS) return null;
+      if (!raw) return null;
+      if (raw === DC_FIPS && !hideDcUiRef.current) return null;
       return raw;
     }
 
@@ -536,6 +546,33 @@ export default function USMap({
     );
   }, [getStatus, topoData]);
 
+  useEffect(() => {
+    if (!enablePinchZoom || !svgRef.current || loading || !topoData) return;
+    const svgEl = svgRef.current;
+    const d3svg = d3.select(svgEl);
+    const root = d3svg.select<SVGGElement>("g.map-zoom-root");
+    if (root.empty()) return;
+
+    const zoom = d3
+      .zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.55, 16])
+      .filter((event) => {
+        if (event.type === "wheel") return (event as WheelEvent).ctrlKey;
+        return true;
+      })
+      .on("zoom", (e) => {
+        root.attr("transform", e.transform.toString());
+      });
+
+    d3svg.call(zoom);
+    d3svg.on("dblclick.zoom", null);
+
+    return () => {
+      d3svg.on(".zoom", null);
+      root.attr("transform", null);
+    };
+  }, [enablePinchZoom, loading, topoData]);
+
   const tooltipConfig = getStatusConfig(tooltip.status);
   const dcStatus = getStatus(DC_FIPS);
   const dcConfig = getStatusConfig(dcStatus);
@@ -626,12 +663,12 @@ export default function USMap({
       <svg
         ref={svgRef}
         viewBox={`0 0 ${width} ${height}`}
-        className="w-full h-full"
+        className={enablePinchZoom ? "w-full h-full touch-none" : "w-full h-full"}
         style={{ display: loading ? "none" : "block" }}
       />
 
       {/* DC geographic pin — small target only; label lives in the corner */}
-      {dcPos.ready && !loading && (
+      {!hideDcUi && dcPos.ready && !loading && (
         <div
           className="absolute z-[15]"
           style={{
@@ -716,7 +753,7 @@ export default function USMap({
       )}
 
       {/* DC label card — same vertical line as map pin; snug to map right edge */}
-      {dcPos.ready && !loading && (
+      {!hideDcUi && dcPos.ready && !loading && (
         <div
           className="absolute z-20 pointer-events-none"
           style={{

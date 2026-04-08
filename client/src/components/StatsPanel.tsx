@@ -11,13 +11,80 @@ interface StatsPanelProps {
     byStatus: Record<FootprintStatus, number>;
   };
   onReset: () => void;
+  /** Narrow single strip: wrap rows, no horizontal scroll */
+  compact?: boolean;
 }
 
-export default function StatsPanel({ stats, onReset }: StatsPanelProps) {
+export default function StatsPanel({
+  stats,
+  onReset: _onReset,
+  compact = false,
+}: StatsPanelProps) {
   const percentage = Math.round((stats.visited / stats.total) * 100);
   const activeStatuses = STATUS_CONFIGS.filter(
     (c) => c.id !== "unvisited" && (stats.byStatus[c.id] ?? 0) > 0
   );
+
+  if (compact) {
+    return (
+      <div className="flex flex-col gap-2 w-full">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span
+            className="text-[10px] font-mono uppercase tracking-wide"
+            style={{ color: "#6b7280" }}
+          >
+            已访问
+          </span>
+          <span className="text-xl font-bold font-mono" style={{ color: "#0369a1" }}>
+            {stats.visited}
+          </span>
+          <span className="text-sm font-mono" style={{ color: "#9ca3af" }}>
+            / {stats.total}
+          </span>
+          <span className="text-[11px] font-mono" style={{ color: "#64748b" }}>
+            {percentage}%
+          </span>
+        </div>
+        <div
+          className="rounded-full overflow-hidden h-1"
+          style={{ background: "#e5e7eb" }}
+        >
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{
+              width: `${percentage}%`,
+              background: "linear-gradient(90deg, #06b6d4, #0369a1)",
+            }}
+          />
+        </div>
+        {activeStatuses.length > 0 && (
+          <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+            {activeStatuses.map((config) => {
+              const count = stats.byStatus[config.id] ?? 0;
+              return (
+                <span
+                  key={config.id}
+                  className="inline-flex items-center gap-1 text-[11px] font-mono"
+                  style={{ color: config.borderColor }}
+                >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{ background: config.borderColor }}
+                  />
+                  {config.labelZh} {count}
+                </span>
+              );
+            })}
+          </div>
+        )}
+        {stats.visited === 0 && (
+          <p className="text-[10px] font-mono" style={{ color: "#9ca3af" }}>
+            点击地图上的州开始标记
+          </p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-3">
