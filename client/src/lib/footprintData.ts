@@ -89,8 +89,10 @@ export function getNextStatus(current: FootprintStatus): FootprintStatus {
   return STATUS_ORDER[(idx + 1) % STATUS_ORDER.length];
 }
 
-export function getStatusConfig(status: FootprintStatus): StatusConfig {
-  return STATUS_CONFIGS.find((s) => s.id === status)!;
+export function getStatusConfig(status: FootprintStatus | string): StatusConfig {
+  // Defensive: if status is not recognized, default to unvisited
+  const config = STATUS_CONFIGS.find((s) => s.id === status);
+  return config || STATUS_CONFIGS[0]; // fallback to unvisited
 }
 
 // FIPS codes for all 50 states + DC, with Chinese names
