@@ -4,11 +4,11 @@
  * Uses US Atlas TopoJSON (10m resolution) for accurate state boundaries
  * AlbersUSA projection handles AK/HI insets automatically
  *
- * DC Strategy: DC is tiny on the map. A small pin marks the true location;
- * the interactive label card sits in the bottom-right of the container so
- * it does not cover nearby states.
+ * DC Strategy: DC uses the same dashed leader + label styling as mid-Atlantic
+ * states; the label sits just below Maryland. A red star at the true location
+ * is the click target (desktop). On small viewports, hideDcUi uses the map polygon + external UI.
  */
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
 import * as topojson from "topojson-client";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -32,13 +32,6 @@ interface TooltipState {
   abbr: string;
   status: FootprintStatus;
   visible: boolean;
-}
-
-// DC pin position in px relative to map container (tracks SVG letterboxing / resize)
-interface DCOverlayPos {
-  dotPxX: number;
-  dotPxY: number;
-  ready: boolean;
 }
 
 interface USMapProps {
@@ -103,6 +96,13 @@ const CALLOUT_LABEL_DY: Record<string, number> = {
   "10": -5,
 };
 
+/** When labels sit at centroid (no right callout): nudge toward state interior. +dx right, +dy down */
+const LABEL_CENTER_NUDGE: Record<string, { dx: number; dy: number }> = {
+  "12": { dx: 14, dy: 8 }, // FL — nudge right toward peninsula center
+  "26": { dx: 10, dy: 14 }, // MI — toward lower peninsula (centroid often in lake)
+  "22": { dx: 0, dy: 6 }, // LA — slightly south
+};
+
 function wantsRightCallout(
   fips: string,
   centroid: [number, number],
@@ -119,6 +119,60 @@ function wantsRightCallout(
   if (CALLOUT_RIGHT_FIPS.has(fips)) return true;
   return bw < 48 || bh < 36 || area < 6800;
 }
+
+/** Pentagon star path centered at origin (y-up SVG coords) */
+function dcStarPath(outerR: number): string {
+  const innerR = outerR * 0.38;
+  const parts: string[] = [];
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? outerR : innerR;
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    parts.push(`${r * Math.cos(a)},${r * Math.sin(a)}`);
+  }
+  return `M${parts[0]}L${parts.slice(1).join("L")}Z`;
+}
+
+function computeCalloutLayout(
+  d: GeoJSON.Feature,
+  fips: string,
+  path: d3.GeoPath<SVGSVGElement, d3.GeoPermissibleObjects>,
+  width: number
+): {
+  cx: number;
+  cy: number;
+  lx: number;
+  ly: number;
+  anchor: "start" | "middle";
+  callout: boolean;
+} {
+  const centroid = path.centroid(d as d3.GeoPermissibleObjects) as [number, number];
+  const bounds = path.bounds(d as d3.GeoPermissibleObjects) as [
+    [number, number],
+    [number, number],
+  ];
+  const callout = wantsRightCallout(fips, centroid, bounds, width);
+  const [cx, cy] = centroid;
+  const bw = bounds[1][0] - bounds[0][0];
+  const baseGap = Math.min(72, Math.max(28, 52 - bw * 0.35));
+  const extraX = callout ? EXTRA_CALLOUT_GAP_X[fips] ?? 0 : 0;
+  let lx = Math.min(cx + baseGap + extraX, width - 4);
+  const dyCallout = callout ? CALLOUT_LABEL_DY[fips] ?? 0 : 0;
+  let ly = cy + dyCallout;
+  let anchor: "start" | "middle" = callout ? "start" : "middle";
+  if (fips === "50" && callout) {
+    const topY = bounds[0][1];
+    ly = Math.max(32, topY - 22);
+    lx = cx + 8;
+    anchor = "middle";
+  }
+  if (callout) {
+    lx += CALLOUT_NUDGE_X[fips] ?? 0;
+  }
+  return { cx, cy, lx, ly, anchor, callout };
+}
+
+/** Vertical gap from Maryland callout baseline to DC callout baseline (keeps DC below MD text) */
+const DC_CALLOUT_BELOW_MD_PX = 26;
 
 export default function USMap({
   getStatus,
@@ -145,54 +199,10 @@ export default function USMap({
     visible: false,
   });
   const [loading, setLoading] = useState(true);
-  const [dcPos, setDcPos] = useState<DCOverlayPos>({
-    dotPxX: 0,
-    dotPxY: 0,
-    ready: false,
-  });
-  const dcCentroidVBRef = useRef<[number, number] | null>(null);
-  const [dcHoverMap, setDcHoverMap] = useState(false);
-  const [dcHoverCorner, setDcHoverCorner] = useState(false);
-  const dcHover = dcHoverMap || dcHoverCorner;
 
   // Keep a ref to getStatus to avoid re-drawing the whole map on every status change
   const getStatusRef = useRef(getStatus);
   getStatusRef.current = getStatus;
-
-  /** Store DC centroid in SVG viewBox coords; pixel overlay synced via getScreenCTM + ResizeObserver */
-  const computeDcCentroidVB = useCallback(
-    (projection: d3.GeoProjection, features: GeoJSON.Feature[]) => {
-      const dcFeature = features.find(
-        (f) => String(f.id).padStart(2, "0") === DC_FIPS
-      );
-      if (!dcFeature) return;
-      const path = d3.geoPath().projection(projection);
-      const centroid = path.centroid(dcFeature as any);
-      if (!centroid || isNaN(centroid[0])) return;
-      dcCentroidVBRef.current = [centroid[0], centroid[1]];
-    },
-    []
-  );
-
-  const syncDcPinPosition = useCallback(() => {
-    const svg = svgRef.current;
-    const container = containerRef.current;
-    const vb = dcCentroidVBRef.current;
-    if (!svg || !container || !vb) return;
-    if (getComputedStyle(svg).display === "none") return;
-    const pt = svg.createSVGPoint();
-    pt.x = vb[0];
-    pt.y = vb[1];
-    const ctm = svg.getScreenCTM();
-    if (!ctm) return;
-    const screen = pt.matrixTransform(ctm);
-    const cr = container.getBoundingClientRect();
-    setDcPos({
-      dotPxX: screen.x - cr.left,
-      dotPxY: screen.y - cr.top,
-      ready: true,
-    });
-  }, []);
 
   // Load TopoJSON once
   useEffect(() => {
@@ -271,6 +281,7 @@ export default function USMap({
 
     function hoverTargetFips(el: Element | null): string | null {
       if (!el || typeof el.closest !== "function") return null;
+      if (!hideDcUiRef.current && el.closest(".dc-star-hit")) return DC_FIPS;
       const path = el.closest("path.state") as SVGPathElement | null;
       const raw = path?.getAttribute("data-fips") ?? null;
       if (!raw) return null;
@@ -410,35 +421,18 @@ export default function USMap({
         const stateInfo = fipsToInfo[fips];
         if (!stateInfo) return;
 
-        const centroid = path.centroid(d as any) as [number, number];
-        if (!centroid || isNaN(centroid[0])) return;
+        const layout = computeCalloutLayout(d, fips, path, width);
+        const { cx, cy, lx, ly, anchor, callout } = layout;
+        if (isNaN(cx) || isNaN(cy)) return;
 
-        const bounds = path.bounds(d as any) as [[number, number], [number, number]];
-        const callout = wantsRightCallout(fips, centroid, bounds, width);
-        const [cx, cy] = centroid;
-        const bw = bounds[1][0] - bounds[0][0];
-        const baseGap = Math.min(72, Math.max(28, 52 - bw * 0.35));
-        const extraX = callout ? EXTRA_CALLOUT_GAP_X[fips] ?? 0 : 0;
-        let lx = Math.min(cx + baseGap + extraX, width - 4);
-        const dyCallout = callout ? CALLOUT_LABEL_DY[fips] ?? 0 : 0;
-        let ly = cy + dyCallout;
-
-        let anchor: "start" | "middle" = callout ? "start" : "middle";
-        if (fips === "50" && callout) {
-          const topY = bounds[0][1];
-          ly = Math.max(32, topY - 22);
-          lx = cx + 8;
-          anchor = "middle";
-        }
-
-        if (callout) {
-          lx += CALLOUT_NUDGE_X[fips] ?? 0;
-        }
+        const centerNudge = !callout ? LABEL_CENTER_NUDGE[fips] : undefined;
+        const ndx = centerNudge?.dx ?? 0;
+        const ndy = centerNudge?.dy ?? 0;
 
         const gEl = d3.select(this);
-        const tx = callout ? lx : cx;
-        const yAbbr = callout ? ly - 5 : cy - 4;
-        const yZh = callout ? ly + 7 : cy + 6;
+        const tx = callout ? lx : cx + ndx;
+        const yAbbr = (callout ? ly - 5 : cy - 4) + ndy;
+        const yZh = (callout ? ly + 7 : cy + 6) + ndy;
 
         if (callout) {
           gEl
@@ -493,10 +487,113 @@ export default function USMap({
           .text(stateInfo.nameZh);
       });
 
-    computeDcCentroidVB(projection, features);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => syncDcPinPosition());
-    });
+    // DC: same dashed leader + typography as mid-Atlantic callouts; label stacked under MD
+    if (!hideDcUiRef.current) {
+      const mdFeat = features.find(
+        (f) => String(f.id).padStart(2, "0") === "24"
+      );
+      const dcFeat = features.find(
+        (f) => String(f.id).padStart(2, "0") === DC_FIPS
+      );
+      if (mdFeat && dcFeat) {
+        const mdLay = computeCalloutLayout(mdFeat, "24", path, width);
+        const [cx, cy] = path.centroid(
+          dcFeat as d3.GeoPermissibleObjects
+        ) as [number, number];
+        const dcInfo = fipsToInfo[DC_FIPS];
+        if (dcInfo && !isNaN(cx) && !isNaN(cy)) {
+          const anchor: "start" = "start";
+          let lx = mdLay.lx;
+          let ly = mdLay.ly + DC_CALLOUT_BELOW_MD_PX;
+          if (!mdLay.callout) {
+            const baseGap = 52;
+            lx = Math.min(cx + baseGap, width - 4);
+            ly = cy + 6;
+          }
+          const yAbbr = ly - 5;
+          const yZh = ly + 7;
+
+          const gDc = gLabels.append("g").attr("class", "dc-callout");
+
+          gDc
+            .append("line")
+            .attr("x1", cx)
+            .attr("y1", cy)
+            .attr("x2", lx - 1)
+            .attr("y2", ly)
+            .attr("stroke", "#64748b")
+            .attr("stroke-width", 0.85)
+            .attr("stroke-dasharray", "3,2.5")
+            .attr("opacity", 0.9)
+            .style("pointer-events", "none");
+
+          gDc
+            .append("text")
+            .attr("x", lx)
+            .attr("y", yAbbr)
+            .attr("text-anchor", anchor)
+            .attr("dominant-baseline", "middle")
+            .attr("font-family", "'JetBrains Mono', monospace")
+            .attr("font-size", "11px")
+            .attr("font-weight", "700")
+            .attr("letter-spacing", "0.05em")
+            .attr("fill", labelFill)
+            .attr("stroke", labelHalo)
+            .attr("stroke-width", labelHaloW)
+            .attr("paint-order", "stroke fill")
+            .style("pointer-events", "none")
+            .text(dcInfo.abbr);
+
+          gDc
+            .append("text")
+            .attr("x", lx)
+            .attr("y", yZh)
+            .attr("text-anchor", anchor)
+            .attr("dominant-baseline", "middle")
+            .attr("font-family", "'Space Grotesk', sans-serif")
+            .attr("font-size", "8px")
+            .attr("font-weight", "600")
+            .attr("fill", labelFill)
+            .attr("stroke", labelHalo)
+            .attr("stroke-width", labelHaloW)
+            .attr("paint-order", "stroke fill")
+            .style("pointer-events", "none")
+            .text(dcInfo.nameZh);
+
+          const starG = gDc
+            .append("g")
+            .attr("class", "dc-star-interactive")
+            .style("cursor", "pointer");
+
+          starG
+            .append("circle")
+            .attr("class", "dc-star-hit")
+            .attr("cx", cx)
+            .attr("cy", cy)
+            .attr("r", 11)
+            .attr("fill", "transparent")
+            .on("click", function (e) {
+              e.stopPropagation();
+              onStateClick(DC_FIPS);
+            })
+            .on("contextmenu", function (e) {
+              e.preventDefault();
+              e.stopPropagation();
+              onStateRightClick?.(DC_FIPS, e.clientX, e.clientY);
+            });
+
+          starG
+            .append("path")
+            .attr("d", dcStarPath(3.8))
+            .attr("transform", `translate(${cx},${cy})`)
+            .attr("fill", "#dc2626")
+            .attr("stroke", "#ffffff")
+            .attr("stroke-width", 0.5)
+            .attr("paint-order", "stroke fill")
+            .style("pointer-events", "none");
+        }
+      }
+    }
 
     return () => {
       hoveredFipsRef.current = null;
@@ -509,29 +606,7 @@ export default function USMap({
           .on("pointercancel.statehover", null);
       }
     };
-  }, [
-    topoData,
-    width,
-    height,
-    onStateClick,
-    onStateRightClick,
-    computeDcCentroidVB,
-    syncDcPinPosition,
-  ]);
-
-  useEffect(() => {
-    if (loading || !topoData) return;
-    const container = containerRef.current;
-    if (!container) return;
-    syncDcPinPosition();
-    const ro = new ResizeObserver(() => syncDcPinPosition());
-    ro.observe(container);
-    window.addEventListener("resize", syncDcPinPosition);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", syncDcPinPosition);
-    };
-  }, [loading, topoData, syncDcPinPosition]);
+  }, [topoData, width, height, hideDcUi, onStateClick, onStateRightClick]);
 
   // Re-color states when footprint data changes
   useEffect(() => {
@@ -574,78 +649,6 @@ export default function USMap({
   }, [enablePinchZoom, loading, topoData]);
 
   const tooltipConfig = getStatusConfig(tooltip.status);
-  const dcStatus = getStatus(DC_FIPS);
-  const dcConfig = getStatusConfig(dcStatus);
-  const dcVisited = dcStatus !== "unvisited";
-
-  const dcRichTooltip = (
-    <div
-      className="rounded-xl px-3.5 py-2.5 shadow-lg"
-      style={{
-        background: "#ffffff",
-        border: `1px solid ${
-          dcVisited ? `${dcConfig.borderColor}44` : "#e5e7eb"
-        }`,
-        boxShadow: dcVisited
-          ? `0 0 20px ${dcConfig.borderColor}11, 0 4px 12px rgba(0,0,0,0.08)`
-          : "0 4px 12px rgba(0,0,0,0.08)",
-        minWidth: "160px",
-      }}
-    >
-      <div className="flex items-center gap-2 mb-1">
-        <span
-          className="text-[11px] font-mono font-semibold px-1.5 py-0.5 rounded"
-          style={{
-            background: "#f0f9ff",
-            color: "#0369a1",
-          }}
-        >
-          DC
-        </span>
-        <span
-          className="text-[13px] font-semibold leading-tight"
-          style={{
-            color: "#1f2937",
-            fontFamily: "'Space Grotesk', sans-serif",
-          }}
-        >
-          Washington D.C.
-        </span>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <div
-          className="w-2 h-2 rounded-sm flex-shrink-0"
-          style={{
-            background: dcConfig.color,
-            border: `1px solid ${
-              dcVisited ? `${dcConfig.borderColor}66` : "rgba(30,58,95,0.6)"
-            }`,
-            boxShadow: dcVisited ? `0 0 4px ${dcConfig.borderColor}` : "none",
-          }}
-        />
-        <span
-          className="text-[11px] font-mono"
-          style={{
-            color: dcVisited ? dcConfig.borderColor : "#475569",
-          }}
-        >
-          {dcConfig.labelZh} · {dcConfig.label}
-        </span>
-      </div>
-      <div
-        className="text-[10px] font-mono mt-1.5 pt-1.5 border-t"
-        style={{
-          color: "#9ca3af",
-          borderColor: "#e5e7eb",
-        }}
-      >
-        Left click: next · Right click: choose
-      </div>
-    </div>
-  );
-
-  // DC map pin: true geographic anchor (small hit target only)
-  // DC label card: bottom-right of container — does not overlap the mainland map
 
   return (
     <div ref={containerRef} className="relative w-full h-full">
@@ -666,179 +669,6 @@ export default function USMap({
         className={enablePinchZoom ? "w-full h-full touch-none" : "w-full h-full"}
         style={{ display: loading ? "none" : "block" }}
       />
-
-      {/* DC geographic pin — small target only; label lives in the corner */}
-      {!hideDcUi && dcPos.ready && !loading && (
-        <div
-          className="absolute z-[15]"
-          style={{
-            left: dcPos.dotPxX,
-            top: dcPos.dotPxY,
-            transform: "translate(-50%, -50%)",
-            width: "28px",
-            height: "28px",
-            pointerEvents: "none",
-          }}
-        >
-          <button
-            type="button"
-            className="absolute inset-0 pointer-events-auto rounded-full"
-            style={{
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-            }}
-            onClick={() => onStateClick(DC_FIPS)}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              onStateRightClick?.(DC_FIPS, e.clientX, e.clientY);
-            }}
-            onMouseEnter={() => setDcHoverMap(true)}
-            onMouseLeave={() => setDcHoverMap(false)}
-            title="Washington D.C."
-            aria-label="Washington D.C. on map"
-          />
-          <svg
-            width="22"
-            height="22"
-            viewBox="0 0 22 22"
-            style={{
-              position: "absolute",
-              left: "50%",
-              top: "50%",
-              transform: "translate(-50%, -50%)",
-              overflow: "visible",
-              pointerEvents: "none",
-            }}
-          >
-            {dcHover && (
-              <circle
-                cx="11"
-                cy="11"
-                r="9"
-                fill="none"
-                stroke={dcVisited ? dcConfig.borderColor : "#00d4ff"}
-                strokeWidth="1"
-                opacity="0.35"
-              />
-            )}
-            <circle
-              cx="11"
-              cy="11"
-              r={dcHover ? 5 : 3.5}
-              fill={
-                dcVisited
-                  ? dcConfig.borderColor
-                  : dcHover
-                    ? "#0369a1"
-                    : "#06b6d4"
-              }
-              stroke="#ffffff"
-              strokeWidth="1"
-              style={{ transition: "r 0.15s, fill 0.15s" }}
-            />
-          </svg>
-          {dcHoverMap && !dcHoverCorner && (
-            <div
-              className="pointer-events-none absolute z-50 left-1/2 -translate-x-1/2"
-              style={{
-                top: "calc(100% + 6px)",
-                maxWidth: "min(260px, calc(100vw - 48px))",
-              }}
-            >
-              {dcRichTooltip}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* DC label card — same vertical line as map pin; snug to map right edge */}
-      {!hideDcUi && dcPos.ready && !loading && (
-        <div
-          className="absolute z-20 pointer-events-none"
-          style={{
-            right: 2,
-            top: dcPos.dotPxY,
-            transform: "translateY(-50%)",
-          }}
-        >
-          <div className="relative">
-            {dcHoverCorner && (
-              <div
-                className="pointer-events-none absolute z-50 right-0"
-                style={{
-                  bottom: "calc(100% + 6px)",
-                  maxWidth: "min(260px, calc(100vw - 48px))",
-                }}
-              >
-                {dcRichTooltip}
-              </div>
-            )}
-            <button
-              type="button"
-              className="pointer-events-auto text-left rounded-lg border shadow-sm transition-colors duration-150"
-              style={{
-                padding: "6px 10px",
-                minWidth: "72px",
-                background: dcVisited
-                  ? `${dcConfig.color}ee`
-                  : dcHoverCorner
-                    ? "#f3f4f6"
-                    : "#ffffff",
-                borderColor: dcVisited
-                  ? `${dcConfig.borderColor}88`
-                  : dcHoverCorner
-                    ? "#9ca3af"
-                    : "#e5e7eb",
-              }}
-              onClick={() => onStateClick(DC_FIPS)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                onStateRightClick?.(DC_FIPS, e.clientX, e.clientY);
-              }}
-              onMouseEnter={() => setDcHoverCorner(true)}
-              onMouseLeave={() => setDcHoverCorner(false)}
-              title="Washington D.C."
-            >
-              <div
-                className="text-[10px] font-mono font-bold tracking-wide"
-                style={{
-                  color: dcVisited
-                    ? dcConfig.borderColor
-                    : dcHoverCorner
-                      ? "#1f2937"
-                      : "#9ca3af",
-                }}
-              >
-                DC
-              </div>
-              <div
-                className="text-[9px] font-medium leading-tight mt-0.5"
-                style={{
-                  color: "#475569",
-                  fontFamily: "'Space Grotesk', sans-serif",
-                }}
-              >
-                {fipsToInfo[DC_FIPS]?.nameZh ?? "华盛顿特区"}
-              </div>
-              {dcVisited && (
-                <div
-                  className="text-[9px] font-mono leading-tight mt-0.5 opacity-90"
-                  style={{ color: dcConfig.borderColor }}
-                >
-                  {dcConfig.labelZh}
-                </div>
-              )}
-              <div
-                className="text-[8px] font-mono mt-1 opacity-60"
-                style={{ color: "#64748b" }}
-              >
-                地图圆点处
-              </div>
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Tooltip for other states */}
       {tooltip.visible && (

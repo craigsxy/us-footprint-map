@@ -1,7 +1,7 @@
 /**
  * Home — Main page layout
  * Design: Clean Light / Cartographic
- * Features: Full-screen map, collapsible left panel, territories dock on map, context menu
+ * Features: Full-screen map, collapsible left panel (stats, legend, territories), context menu
  */
 import { useState, useCallback, useRef, useEffect } from "react";
 import USMap from "@/components/USMap";
@@ -20,6 +20,14 @@ import {
 import { Map, RotateCcw, ChevronLeft, ChevronRight, X } from "lucide-react";
 
 const DC_FIPS = "11";
+
+const DC_STATE_MOBILE = US_STATES.find((s) => s.fips === DC_FIPS)!;
+
+/** Mobile strip: DC first, then territories — 3 columns per row */
+const MOBILE_CAPITAL_AND_TERRITORIES = [
+  { kind: "dc" as const },
+  ...US_TERRITORIES.map((t) => ({ kind: "territory" as const, territory: t })),
+];
 
 interface ContextMenuState {
   visible: boolean;
@@ -245,6 +253,22 @@ export default function Home() {
                 style={{ borderColor: "#e5e7eb" }}
               />
               <Legend />
+              <div
+                className="border-t"
+                style={{ borderColor: "#e5e7eb" }}
+              />
+              <TerritoriesPanel
+                layout="sidebar"
+                dcSidebar={{
+                  fips: DC_FIPS,
+                  onClick: () => cycleStatus(DC_FIPS),
+                  onRightClick: (x, y) =>
+                    handleStateRightClick(DC_FIPS, x, y),
+                }}
+                getStatus={getStatus}
+                onTerritoryClick={handleTerritoryClick}
+                onTerritoryRightClick={handleTerritoryRightClick}
+              />
             </div>
           </div>
         </div>
@@ -281,61 +305,130 @@ export default function Home() {
           <Legend compact />
         </div>
 
-        {/* Mobile — strip 2: DC + territories */}
+        {/* Mobile — strip 2: 首都 + 海外领地，一行三个 */}
         <div
-          className="flex-shrink-0 space-y-2 border-b px-3 py-2.5 lg:hidden"
+          className="flex-shrink-0 border-b px-3 py-2.5 lg:hidden"
           style={{
             background: "#ffffff",
             borderColor: "#e5e7eb",
           }}
         >
-          <div className="text-[9px] font-mono uppercase tracking-wide" style={{ color: "#6b7280" }}>
-            华盛顿特区
-          </div>
-          <button
-            type="button"
-            onClick={() => cycleStatus(DC_FIPS)}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              handleStateRightClick(DC_FIPS, e.clientX, e.clientY);
-            }}
-            className="flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors duration-150"
-            style={{
-              background: getStatus(DC_FIPS) !== "unvisited"
-                ? `${getStatusConfig(getStatus(DC_FIPS)).color}22`
-                : "#f9fafb",
-              borderColor:
-                getStatus(DC_FIPS) !== "unvisited"
-                  ? `${getStatusConfig(getStatus(DC_FIPS)).borderColor}66`
-                  : "#e5e7eb",
-            }}
+          <div
+            className="text-[9px] font-mono uppercase tracking-wide mb-2"
+            style={{ color: "#6b7280" }}
           >
-            <span className="text-lg font-mono font-bold" style={{ color: "#0369a1" }}>
-              DC
-            </span>
-            <div className="min-w-0 flex-1">
-              <div
-                className="text-[12px] font-semibold"
-                style={{ fontFamily: "'Space Grotesk', sans-serif", color: "#1f2937" }}
-              >
-                {US_STATES.find((s) => s.fips === DC_FIPS)?.nameZh ?? "华盛顿特区"}
-              </div>
-              {getStatus(DC_FIPS) !== "unvisited" && (
-                <div
-                  className="mt-0.5 text-[10px] font-mono"
-                  style={{ color: getStatusConfig(getStatus(DC_FIPS)).borderColor }}
+            首都和海外领地
+          </div>
+          <div className="grid grid-cols-3 gap-2 w-full">
+            {MOBILE_CAPITAL_AND_TERRITORIES.map((entry) => {
+              if (entry.kind === "dc") {
+                const st = getStatus(DC_FIPS);
+                const cfg = getStatusConfig(st);
+                const visited = st !== "unvisited";
+                return (
+                  <button
+                    key="dc"
+                    type="button"
+                    onClick={() => cycleStatus(DC_FIPS)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      handleStateRightClick(DC_FIPS, e.clientX, e.clientY);
+                    }}
+                    className="flex min-h-[4.5rem] min-w-0 flex-col items-center gap-0.5 rounded-lg border px-1 py-2 text-center transition-colors duration-150"
+                    style={{
+                      background: visited ? `${cfg.color}22` : "#f9fafb",
+                      borderColor: visited ? `${cfg.borderColor}66` : "#e5e7eb",
+                    }}
+                    title={`${DC_STATE_MOBILE.name} / ${DC_STATE_MOBILE.nameZh} — 左键循环 · 长按选状态`}
+                  >
+                    <span
+                      className="text-[11px] font-mono font-bold leading-none"
+                      style={{ color: "#0369a1" }}
+                    >
+                      {DC_STATE_MOBILE.abbr}
+                    </span>
+                    <span
+                      className="line-clamp-2 text-[8px] font-semibold leading-tight"
+                      style={{
+                        fontFamily: "'Space Grotesk', sans-serif",
+                        color: visited ? "#1f2937" : "#6b7280",
+                      }}
+                    >
+                      {DC_STATE_MOBILE.nameZh}
+                    </span>
+                    {visited && (
+                      <span
+                        className="line-clamp-2 text-[7px] font-mono leading-tight"
+                        style={{ color: cfg.borderColor }}
+                      >
+                        {cfg.labelZh}
+                      </span>
+                    )}
+                    <span
+                      className="mt-auto h-1.5 w-1.5 flex-shrink-0 rounded-full"
+                      style={{
+                        background: visited ? cfg.borderColor : "#d1d5db",
+                      }}
+                    />
+                  </button>
+                );
+              }
+              const { territory } = entry;
+              const st = getStatus(territory.id);
+              const cfg = getStatusConfig(st);
+              const visited = st !== "unvisited";
+              return (
+                <button
+                  key={territory.id}
+                  type="button"
+                  onClick={() => handleTerritoryClick(territory.id)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    handleTerritoryRightClick(territory.id, e.clientX, e.clientY);
+                  }}
+                  className="flex min-h-[4.5rem] min-w-0 flex-col items-center gap-0.5 rounded-lg border px-1 py-2 text-center transition-colors duration-150"
+                  style={{
+                    background: visited ? `${cfg.color}22` : "#f9fafb",
+                    borderColor: visited
+                      ? `${cfg.borderColor}33`
+                      : "#e5e7eb",
+                  }}
+                  title={`${territory.name} / ${territory.nameZh} — 左键循环 · 长按选状态`}
                 >
-                  {getStatusConfig(getStatus(DC_FIPS)).labelZh}
-                </div>
-              )}
-            </div>
-          </button>
-          <TerritoriesPanel
-            layout="mobileWrap"
-            getStatus={getStatus}
-            onTerritoryClick={handleTerritoryClick}
-            onTerritoryRightClick={handleTerritoryRightClick}
-          />
+                  <span className="text-base leading-none">{territory.flag}</span>
+                  <span
+                    className="line-clamp-2 text-[8px] font-semibold leading-tight"
+                    style={{
+                      fontFamily: "'Space Grotesk', sans-serif",
+                      color: visited ? "#1f2937" : "#6b7280",
+                    }}
+                  >
+                    {territory.nameZh}
+                  </span>
+                  {visited && (
+                    <span
+                      className="line-clamp-2 text-[7px] font-mono leading-tight"
+                      style={{ color: cfg.borderColor }}
+                    >
+                      {cfg.labelZh}
+                    </span>
+                  )}
+                  <span
+                    className="mt-auto h-1.5 w-1.5 flex-shrink-0 rounded-full"
+                    style={{
+                      background: visited ? cfg.borderColor : "#d1d5db",
+                    }}
+                  />
+                </button>
+              );
+            })}
+          </div>
+          <div
+            className="text-[8px] font-mono mt-2"
+            style={{ color: "#9ca3af" }}
+          >
+            左键循环 · 长按或右键设置
+          </div>
         </div>
 
         {/* Map area */}
@@ -355,25 +448,8 @@ export default function Home() {
             />
           </div>
 
-          {/* Territories — desktop only on map */}
-          <div
-            className="pointer-events-auto absolute right-2 bottom-2 z-[12] hidden max-w-[min(calc(100%-8px),220px)] rounded-xl border p-2 shadow-sm sm:p-2.5 lg:block w-max"
-            style={{
-              background: "rgba(255,255,255,0.96)",
-              borderColor: "#e5e7eb",
-              backdropFilter: "blur(6px)",
-            }}
-          >
-            <TerritoriesPanel
-              layout="dock"
-              getStatus={getStatus}
-              onTerritoryClick={handleTerritoryClick}
-              onTerritoryRightClick={handleTerritoryRightClick}
-            />
-          </div>
-
           {/* Bottom hint — desktop */}
-          <div className="pointer-events-none absolute bottom-3 left-1/2 hidden max-w-[calc(100%-200px)] -translate-x-1/2 text-center text-[10px] font-mono whitespace-nowrap text-gray-500 lg:block">
+          <div className="pointer-events-none absolute bottom-3 left-1/2 hidden max-w-[calc(100%-48px)] -translate-x-1/2 text-center text-[10px] font-mono whitespace-nowrap text-gray-500 lg:block">
             Left click: cycle status · Right click: set directly
           </div>
         </div>
