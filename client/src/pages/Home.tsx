@@ -1,7 +1,7 @@
 /**
  * Home — Main page layout
  * Design: Clean Light / Cartographic
- * Features: Full-screen map, collapsible side panels, context menu for direct status selection
+ * Features: Full-screen map, collapsible left panel, territories dock on map, context menu
  */
 import { useState, useCallback, useRef, useEffect } from "react";
 import USMap from "@/components/USMap";
@@ -29,7 +29,6 @@ interface ContextMenuState {
 export default function Home() {
   const { getStatus, cycleStatus, setStatus, resetAll, stats } = useFootprint();
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
-  const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     visible: false,
     x: 0,
@@ -253,7 +252,7 @@ export default function Home() {
         </button>
 
         {/* Map area */}
-        <div className="flex-1 relative overflow-hidden" style={{ background: "#f3f4f6" }}>
+        <div className="flex-1 relative overflow-hidden min-h-0" style={{ background: "#f3f4f6" }}>
           <div className="absolute inset-0 flex items-center justify-center p-2 sm:p-4">
             <USMap
               getStatus={getStatus}
@@ -264,51 +263,30 @@ export default function Home() {
             />
           </div>
 
+          {/* Territories — docked bottom-right on map (replaces right sidebar) */}
+          <div
+            className="absolute bottom-2 right-2 z-[12] rounded-xl border shadow-sm p-2 sm:p-2.5 pointer-events-auto w-max max-w-[min(calc(100%-8px),220px)]"
+            style={{
+              background: "rgba(255,255,255,0.96)",
+              borderColor: "#e5e7eb",
+              backdropFilter: "blur(6px)",
+            }}
+          >
+            <TerritoriesPanel
+              layout="dock"
+              getStatus={getStatus}
+              onTerritoryClick={handleTerritoryClick}
+              onTerritoryRightClick={handleTerritoryRightClick}
+            />
+          </div>
+
           {/* Bottom hint */}
           <div
-            className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] font-mono text-gray-500 pointer-events-none whitespace-nowrap"
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] font-mono text-gray-500 pointer-events-none whitespace-nowrap max-w-[calc(100%-200px)] text-center"
           >
             Left click: cycle status · Right click: set directly
           </div>
         </div>
-
-        {/* Right Panel — Territories */}
-        <div
-          className="relative flex-shrink-0 transition-all duration-300 ease-in-out overflow-hidden"
-          style={{ width: rightPanelOpen ? "180px" : "0px" }}
-        >
-          <div
-            className="absolute inset-y-0 right-0 overflow-y-auto"
-            style={{
-              width: "180px",
-              background: "#ffffff",
-              borderLeft: "1px solid #e5e7eb",
-            }}
-          >
-            <div className="p-3">
-              <TerritoriesPanel
-                getStatus={getStatus}
-                onTerritoryClick={handleTerritoryClick}
-                onTerritoryRightClick={handleTerritoryRightClick}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Right panel toggle */}
-        <button
-          onClick={() => setRightPanelOpen((v) => !v)}
-          className="absolute top-1/2 -translate-y-1/2 z-20 flex items-center justify-center w-5 h-10 rounded-l-lg transition-all duration-300"
-          style={{
-            right: rightPanelOpen ? "180px" : "0px",
-            background: "#f9fafb",
-            border: "1px solid #e5e7eb",
-            borderRight: "none",
-            color: "#9ca3af",
-          }}
-        >
-          {rightPanelOpen ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
-        </button>
       </div>
 
       {/* Mobile bottom bar */}
@@ -350,7 +328,7 @@ export default function Home() {
           className="fixed z-50 rounded-xl overflow-hidden shadow-lg"
           style={{
             left: Math.min(contextMenu.x, window.innerWidth - 200),
-            top: Math.min(contextMenu.y, window.innerHeight - 280),
+            top: Math.min(contextMenu.y, window.innerHeight - 200),
             background: "#ffffff",
             border: "1px solid #e5e7eb",
             minWidth: "190px",

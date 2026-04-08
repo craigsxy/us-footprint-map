@@ -9,12 +9,15 @@ interface TerritoriesPanelProps {
   getStatus: (id: string) => FootprintStatus;
   onTerritoryClick: (id: string) => void;
   onTerritoryRightClick: (id: string, x: number, y: number) => void;
+  /** Sidebar column vs same column docked map corner (both vertical) */
+  layout?: "sidebar" | "dock";
 }
 
 export default function TerritoriesPanel({
   getStatus,
   onTerritoryClick,
   onTerritoryRightClick,
+  layout = "sidebar",
 }: TerritoriesPanelProps) {
   const handleContextMenu = useCallback(
     (e: React.MouseEvent, id: string) => {
@@ -24,74 +27,91 @@ export default function TerritoriesPanel({
     [onTerritoryRightClick]
   );
 
+  const dock = layout === "dock";
+
   return (
-    <div className="flex flex-col gap-2">
+    <div
+      className={
+        dock
+          ? "flex flex-col gap-2 w-[188px] max-w-full"
+          : "flex flex-col gap-2"
+      }
+    >
       <div
-        className="text-[10px] font-mono uppercase tracking-widest px-1"
+        className={
+          dock
+            ? "text-[9px] font-mono uppercase tracking-wider px-1 text-right"
+            : "text-[10px] font-mono uppercase tracking-widest px-1"
+        }
         style={{ color: "#6b7280" }}
       >
-        Territories
+        {dock ? "海外领地" : "Territories"}
       </div>
-      {US_TERRITORIES.map((territory) => {
-        const status = getStatus(territory.id);
-        const config = getStatusConfig(status);
-        const isVisited = status !== "unvisited";
+      <div className="flex flex-col gap-2 w-full">
+        {US_TERRITORIES.map((territory) => {
+          const status = getStatus(territory.id);
+          const config = getStatusConfig(status);
+          const isVisited = status !== "unvisited";
 
-        return (
-          <button
-            key={territory.id}
-            onClick={() => onTerritoryClick(territory.id)}
-            onContextMenu={(e) => handleContextMenu(e, territory.id)}
-            className="flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-150"
-            style={{
-              background: isVisited
-                ? `${config.color}22`
-                : "#f9fafb",
-              border: `1px solid ${
-                isVisited
-                  ? `${config.borderColor}33`
-                  : "#e5e7eb"
-              }`,
-            }}
-            title={`${territory.name} — Left click to cycle, right click to set`}
-          >
-            <span className="text-xl leading-none flex-shrink-0">
-              {territory.flag}
-            </span>
-            <div className="flex-1 min-w-0">
-              <div
-                className="text-[12px] font-semibold leading-tight"
-                style={{
-                  color: isVisited ? "#1f2937" : "#9ca3af",
-                  fontFamily: "'Space Grotesk', sans-serif",
-                }}
-              >
-                {territory.abbr}
-              </div>
-              <div
-                className="text-[9px] font-mono leading-tight mt-0.5 truncate"
-                style={{
-                  color: isVisited ? config.borderColor : "#9ca3af",
-                }}
-              >
-                {isVisited ? config.labelZh : territory.name.split(" ").slice(0, 2).join(" ")}
-              </div>
-            </div>
-            {/* Status indicator dot */}
-            <div
-              className="w-2 h-2 rounded-full flex-shrink-0 transition-all duration-200"
+          return (
+            <button
+              key={territory.id}
+              onClick={() => onTerritoryClick(territory.id)}
+              onContextMenu={(e) => handleContextMenu(e, territory.id)}
+              className="flex w-full items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-150"
               style={{
-                background: isVisited ? config.borderColor : "#d1d5db",
+                background: isVisited
+                  ? `${config.color}22`
+                  : "#f9fafb",
+                border: `1px solid ${
+                  isVisited
+                    ? `${config.borderColor}33`
+                    : "#e5e7eb"
+                }`,
               }}
-            />
-          </button>
-        );
-      })}
+              title={`${territory.name} / ${territory.nameZh} — 左键循环 · 右键直接设置`}
+            >
+              <span className="text-xl leading-none flex-shrink-0">
+                {territory.flag}
+              </span>
+              <div className="flex-1 min-w-0 text-left">
+                <div
+                  className="text-[12px] font-semibold leading-tight"
+                  style={{
+                    color: isVisited ? "#1f2937" : "#9ca3af",
+                    fontFamily: "'Space Grotesk', sans-serif",
+                  }}
+                >
+                  {territory.abbr}
+                </div>
+                <div
+                  className="text-[9px] font-mono leading-tight mt-0.5 truncate"
+                  style={{
+                    color: isVisited ? config.borderColor : "#9ca3af",
+                  }}
+                >
+                  {isVisited ? config.labelZh : territory.nameZh}
+                </div>
+              </div>
+              <div
+                className="w-2 h-2 rounded-full flex-shrink-0 transition-all duration-200"
+                style={{
+                  background: isVisited ? config.borderColor : "#d1d5db",
+                }}
+              />
+            </button>
+          );
+        })}
+      </div>
       <div
-        className="text-[9px] font-mono mt-1 px-1"
-        style={{ color: "#d1d5db" }}
+        className={
+          dock
+            ? "text-[8px] font-mono mt-0.5 px-1 text-right"
+            : "text-[9px] font-mono mt-1 px-1"
+        }
+        style={{ color: dock ? "#9ca3af" : "#d1d5db" }}
       >
-        Right-click to set status directly
+        {dock ? "左键循环 · 右键设置" : "Right-click to set status directly"}
       </div>
     </div>
   );

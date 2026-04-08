@@ -1,17 +1,14 @@
 /**
  * Footprint Map — Data & Constants
  * Design: Clean Light / Cartographic
- * States cycle through 7 levels from unvisited to long-term resident
+ * Four visit levels: not visited, passed through, short trip, long stay
  */
 
 export type FootprintStatus =
   | "unvisited"
   | "transit"
-  | "business"
   | "trip"
-  | "longstay"
-  | "school"
-  | "lived";
+  | "longstay";
 
 export interface StatusConfig {
   id: FootprintStatus;
@@ -28,7 +25,7 @@ export const STATUS_CONFIGS: StatusConfig[] = [
   {
     id: "unvisited",
     label: "Not Visited",
-    labelZh: "未去过",
+    labelZh: "没去过",
     color: "#e8edf2",
     borderColor: "#c5cdd6",
     textColor: "#8a9ab0",
@@ -38,22 +35,12 @@ export const STATUS_CONFIGS: StatusConfig[] = [
   {
     id: "transit",
     label: "Passed Through",
-    labelZh: "路过/中转",
+    labelZh: "路过",
     color: "#bae6fd",
     borderColor: "#38bdf8",
     textColor: "#0369a1",
     description: "Just passing through",
     order: 1,
-  },
-  {
-    id: "business",
-    label: "Business Trip",
-    labelZh: "出差",
-    color: "#bfdbfe",
-    borderColor: "#60a5fa",
-    textColor: "#1d4ed8",
-    description: "Visited for work",
-    order: 2,
   },
   {
     id: "trip",
@@ -62,8 +49,8 @@ export const STATUS_CONFIGS: StatusConfig[] = [
     color: "#bbf7d0",
     borderColor: "#34d399",
     textColor: "#065f46",
-    description: "Leisure travel",
-    order: 3,
+    description: "Short visit or travel",
+    order: 2,
   },
   {
     id: "longstay",
@@ -72,40 +59,30 @@ export const STATUS_CONFIGS: StatusConfig[] = [
     color: "#fde68a",
     borderColor: "#fbbf24",
     textColor: "#92400e",
-    description: "Extended stay",
-    order: 4,
-  },
-  {
-    id: "school",
-    label: "Studied Here",
-    labelZh: "上学",
-    color: "#f5d0fe",
-    borderColor: "#e879f9",
-    textColor: "#86198f",
-    description: "Attended school",
-    order: 5,
-  },
-  {
-    id: "lived",
-    label: "Lived Here",
-    labelZh: "居住过",
-    color: "#fecaca",
-    borderColor: "#f87171",
-    textColor: "#991b1b",
-    description: "Called it home",
-    order: 6,
+    description: "Extended stay or lived here",
+    order: 3,
   },
 ];
 
 export const STATUS_ORDER: FootprintStatus[] = [
   "unvisited",
   "transit",
-  "business",
   "trip",
   "longstay",
-  "school",
-  "lived",
 ];
+
+/** Maps v1 storage values onto the four current statuses */
+const STORED_STATUS_MAP: Record<string, FootprintStatus> = {
+  unvisited: "unvisited",
+  transit: "transit",
+  business: "trip",
+  trip: "trip",
+  longstay: "longstay",
+  school: "longstay",
+  lived: "longstay",
+};
+
+const VALID_STATUS_IDS = new Set<string>(STATUS_ORDER);
 
 export function getNextStatus(current: FootprintStatus): FootprintStatus {
   const idx = STATUS_ORDER.indexOf(current);
@@ -201,14 +178,44 @@ export const STORAGE_KEY = "us-footprint-map-v1";
 
 export type FootprintData = Record<string, FootprintStatus>;
 
+function migrateParsedFootprint(parsed: Record<string, unknown>): {
+  data: FootprintData;
+  resave: boolean;
+} {
+  let resave = false;
+  const data: FootprintData = {};
+  for (const [id, val] of Object.entries(parsed)) {
+    if (typeof val !== "string") {
+      resave = true;
+      continue;
+    }
+    const mapped = STORED_STATUS_MAP[val] ?? (VALID_STATUS_IDS.has(val) ? (val as FootprintStatus) : null);
+    if (mapped === null || mapped === undefined) {
+      resave = true;
+      continue;
+    }
+    if (mapped === "unvisited") {
+      resave = true;
+      continue;
+    }
+    data[id] = mapped;
+    if (mapped !== val) resave = true;
+  }
+  return { data, resave };
+}
+
 export function loadFootprintData(): FootprintData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const { data, resave } = migrateParsedFootprint(parsed as Record<string, unknown>);
+    if (resave) saveFootprintData(data);
+    return data;
   } catch {
-    // ignore
+    return {};
   }
-  return {};
 }
 
 export function saveFootprintData(data: FootprintData): void {
