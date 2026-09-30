@@ -8,6 +8,7 @@ import USMap from "@/components/USMap";
 import TerritoriesPanel from "@/components/TerritoriesPanel";
 import Legend from "@/components/Legend";
 import StatsPanel from "@/components/StatsPanel";
+import BackupMenu from "@/components/BackupMenu";
 import { useFootprint } from "@/hooks/useFootprint";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import {
@@ -45,7 +46,8 @@ interface ContextMenuState {
 }
 
 export default function Home() {
-  const { getStatus, cycleStatus, setStatus, resetAll, stats } = useFootprint();
+  const { data, getStatus, cycleStatus, setStatus, resetAll, replaceAll, stats } =
+    useFootprint();
   const isLg = useMediaQuery("(min-width: 1024px)");
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   /** Mobile: 首都和海外领地 strip 默认折叠 */
@@ -135,7 +137,7 @@ export default function Home() {
     >
       {/* Header */}
       <header
-        className="relative z-10 flex items-center justify-between px-4 sm:px-6 py-3 border-b flex-shrink-0"
+        className="relative z-30 flex items-center justify-between px-4 sm:px-6 py-3 border-b flex-shrink-0"
         style={{
           background: "#ffffff",
           borderColor: "#e5e7eb",
@@ -228,6 +230,8 @@ export default function Home() {
               / 56
             </span>
           </div>
+
+          <BackupMenu data={data} replaceAll={replaceAll} />
 
           <button
             onClick={handleReset}
