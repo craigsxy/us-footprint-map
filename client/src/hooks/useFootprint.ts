@@ -58,6 +58,11 @@ export function useFootprint() {
     saveFootprintData({});
   }, []);
 
+  const replaceAll = useCallback((next: FootprintData) => {
+    setData(next);
+    saveFootprintData(next);
+  }, []);
+
   // Statistics
   const stats = {
     total: 56,
@@ -71,5 +76,5 @@ export function useFootprint() {
     ),
   };
 
-  return { data, getStatus, cycleStatus, setStatus, resetAll, stats };
+  return { data, getStatus, cycleStatus, setStatus, resetAll, replaceAll, stats };
 }
