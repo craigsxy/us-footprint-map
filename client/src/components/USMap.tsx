@@ -19,8 +19,8 @@ import {
   US_STATES,
 } from "@/lib/footprintData";
 
-const TOPO_URL =
-  "https://d2xsxph8kpxj0f.cloudfront.net/310519663486188563/YAoDdP5gYB78su3x7qjuBc/us-states-10m_e6984906.json";
+// us-atlas@3.0.1 states-10m.json, self-hosted in client/public
+const TOPO_URL = "/us-states-10m.json";
 
 // DC FIPS code
 const DC_FIPS = "11";
