@@ -206,6 +206,20 @@ function migrateParsedFootprint(parsed: Record<string, unknown>): {
   return { data, resave };
 }
 
+/** Parse raw JSON text (raw map, or {data: map} backup wrapper). null if invalid. */
+export function parseFootprintData(text: string): FootprintData | null {
+  try {
+    let parsed = JSON.parse(text) as any;
+    if (parsed && typeof parsed === "object" && parsed.data && typeof parsed.data === "object") {
+      parsed = parsed.data;
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    return migrateParsedFootprint(parsed).data;
+  } catch {
+    return null;
+  }
+}
+
 export function loadFootprintData(): FootprintData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
