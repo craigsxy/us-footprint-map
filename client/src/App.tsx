@@ -5,15 +5,30 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
+import { lazy, Suspense } from "react";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 
+// the globe pulls in the WebGL map engine; keep it out of the U.S. page bundle
+const World = lazy(() => import("./pages/World"));
+const China = lazy(() => import("./pages/China"));
+
 function Router() {
   return (
     <Switch>
-      <Route path={"/"} component={Home} />
+      <Route path={"/"}>
+        <Suspense fallback={<div style={{ position: "fixed", inset: 0, background: "#04060d" }} />}>
+          <World />
+        </Suspense>
+      </Route>
+      <Route path={"/us"} component={Home} />
+      <Route path={"/cn"}>
+        <Suspense fallback={<div style={{ position: "fixed", inset: 0, background: "#eef5fb" }} />}>
+          <China />
+        </Suspense>
+      </Route>
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

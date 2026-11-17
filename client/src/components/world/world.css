@@ -1,0 +1,176 @@
+/* World map chrome: translucent panels floating over the globe. */
+
+.world-root {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 62% 45%, #16264a 0%, #0a1226 42%, #04060d 100%);
+  color: #1d1d1f;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.world-stars {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.world-root .maplibregl-map {
+  background: transparent;
+  font: inherit;
+}
+.world-root .maplibregl-canvas {
+  outline: none;
+}
+
+/*
+ * Frosted panels. The backdrop is blurred hard, saturated and lifted, so what is
+ * behind (terrain, lit regions, even the night sky) diffuses through as colour
+ * while text on top keeps its contrast.
+ */
+.glass {
+  /* light enough to keep dark text readable when only the night sky is behind it */
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(246, 248, 252, 0.7));
+  -webkit-backdrop-filter: blur(36px) saturate(190%) brightness(1.18);
+  backdrop-filter: blur(36px) saturate(190%) brightness(1.18);
+  border: 0.5px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.25),
+    0 0 0 0.5px rgba(0, 0, 0, 0.1),
+    0 18px 50px rgba(0, 0, 0, 0.28);
+}
+
+/* thinner material for small floating controls: more of the map shows through */
+.glass-thin {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.34));
+  -webkit-backdrop-filter: blur(22px) saturate(200%) brightness(1.22);
+  backdrop-filter: blur(22px) saturate(200%) brightness(1.22);
+  border: 0.5px solid rgba(255, 255, 255, 0.6);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.15),
+    0 0 0 0.5px rgba(0, 0, 0, 0.08),
+    0 10px 30px rgba(0, 0, 0, 0.22);
+}
+
+.glass-dark {
+  background: rgba(20, 22, 28, 0.5);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+  border: 0.5px solid rgba(255, 255, 255, 0.14);
+}
+
+.world-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  color: #3a3a3c;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    transform 0.15s;
+}
+.world-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #000;
+}
+.world-btn:active {
+  transform: scale(0.94);
+}
+.world-btn + .world-btn {
+  border-top: 0.5px solid rgba(0, 0, 0, 0.1);
+}
+
+.world-tip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 5;
+  padding: 5px 10px;
+  border-radius: 9px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #fff;
+  background: rgba(28, 28, 30, 0.82);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s;
+  will-change: transform;
+}
+
+.world-scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.18) transparent;
+}
+.world-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.world-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.16);
+  border-radius: 3px;
+}
+
+.world-row {
+  transition: background 0.12s;
+}
+.world-row:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.world-rise {
+  animation: world-rise 0.34s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+@keyframes world-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.world-fade {
+  animation: world-fade 0.6s ease both;
+}
+@keyframes world-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* attribution: small and quiet, bottom-left of the map area */
+.world-root .maplibregl-ctrl-attrib {
+  background: rgba(255, 255, 255, 0.55);
+  font-size: 10px;
+  border-radius: 8px;
+}
+.world-root .maplibregl-ctrl-bottom-right {
+  right: 64px;
+  bottom: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .world-rise,
+  .world-fade {
+    animation: none;
+  }
+}

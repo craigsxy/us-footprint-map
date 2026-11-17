@@ -4,6 +4,7 @@
  * Features: Full-screen map, collapsible left panel (stats, legend, territories), context menu
  */
 import { useState, useCallback, useRef, useEffect } from "react";
+import { Link } from "wouter";
 import USMap from "@/components/USMap";
 import TerritoriesPanel from "@/components/TerritoriesPanel";
 import Legend from "@/components/Legend";
@@ -46,7 +47,7 @@ interface ContextMenuState {
 }
 
 export default function Home() {
-  const { data, getStatus, cycleStatus, setStatus, resetAll, replaceAll, stats } =
+  const { data, allData, getStatus, cycleStatus, setStatus, resetAll, replaceAll, stats } =
     useFootprint();
   const isLg = useMediaQuery("(min-width: 1024px)");
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
@@ -116,7 +117,7 @@ export default function Home() {
   );
 
   const handleReset = useCallback(() => {
-    if (window.confirm("Reset all footprint data? This cannot be undone.")) {
+    if (window.confirm("Reset all U.S. footprint data? This cannot be undone.")) {
       resetAll();
     }
   }, [resetAll]);
@@ -143,9 +144,18 @@ export default function Home() {
           borderColor: "#e5e7eb",
         }}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Link
+            href="/"
+            className="flex flex-shrink-0 items-center gap-0.5 rounded-lg py-1.5 pl-1.5 pr-2.5 text-xs font-medium text-sky-700 transition-colors hover:bg-sky-50"
+            style={{ border: "1px solid #bfdbfe" }}
+            aria-label="回到世界地图"
+          >
+            <ChevronLeft size={15} />
+            世界
+          </Link>
           <div
-            className="p-2 rounded-xl"
+            className="hidden p-2 rounded-xl sm:block"
             style={{
               background: "#f0f9ff",
               border: "1px solid #bfdbfe",
@@ -219,7 +229,8 @@ export default function Home() {
             })}
           </div>
 
-          <div className="flex items-center gap-1.5">
+          {/* phones show the count in the strip below the header */}
+          <div className="hidden items-center gap-1.5 sm:flex">
             <span
               className="text-xl sm:text-2xl font-bold font-mono"
               style={{ color: "#0369a1" }}
@@ -231,7 +242,7 @@ export default function Home() {
             </span>
           </div>
 
-          <BackupMenu data={data} replaceAll={replaceAll} />
+          <BackupMenu data={allData} replaceAll={replaceAll} />
 
           <button
             onClick={handleReset}

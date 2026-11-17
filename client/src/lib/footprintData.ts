@@ -175,10 +175,42 @@ export const US_TERRITORIES: TerritoryInfo[] = [
   { id: "MP", name: "N. Mariana Islands",   nameZh: "北马里亚纳", abbr: "MP", flag: "🇲🇵" },
 ];
 
-// localStorage key
-export const STORAGE_KEY = "us-footprint-map-v1";
+// ---------------------------------------------------------------------------
+// Storage. One store for the whole app, keyed by world region id (ISO 3166-2
+// style, e.g. "US-PA", "CN-BJ" — see client/public/world/regions.json).
+// The U.S. page works with FIPS codes / territory ids and converts at the edge.
+// ---------------------------------------------------------------------------
+export const STORAGE_KEY = "footprint-world-v1";
+/** Pre-world storage: U.S. only, keyed by FIPS code / territory id */
+export const LEGACY_US_STORAGE_KEY = "us-footprint-map-v1";
 
 export type FootprintData = Record<string, FootprintStatus>;
+
+const US_LOCAL_TO_WORLD: Record<string, string> = {};
+for (const s of US_STATES) US_LOCAL_TO_WORLD[s.fips] = `US-${s.abbr}`;
+for (const t of US_TERRITORIES) US_LOCAL_TO_WORLD[t.id] = `US-${t.id}`;
+const US_WORLD_TO_LOCAL: Record<string, string> = Object.fromEntries(
+  Object.entries(US_LOCAL_TO_WORLD).map(([local, world]) => [world, local])
+);
+
+/** U.S. page id (FIPS "42" / territory "PR") -> world id ("US-PA" / "US-PR") */
+export function usToWorldId(localId: string): string {
+  return US_LOCAL_TO_WORLD[localId] ?? localId;
+}
+
+/** World-keyed data -> the U.S. subset keyed the way the U.S. page expects */
+export function pickUsData(all: FootprintData): FootprintData {
+  const out: FootprintData = {};
+  for (const [id, status] of Object.entries(all)) {
+    const local = US_WORLD_TO_LOCAL[id];
+    if (local) out[local] = status;
+  }
+  return out;
+}
+
+export function isUsWorldId(id: string): boolean {
+  return id in US_WORLD_TO_LOCAL;
+}
 
 function migrateParsedFootprint(parsed: Record<string, unknown>): {
   data: FootprintData;
@@ -186,7 +218,10 @@ function migrateParsedFootprint(parsed: Record<string, unknown>): {
 } {
   let resave = false;
   const data: FootprintData = {};
-  for (const [id, val] of Object.entries(parsed)) {
+  for (const [rawId, val] of Object.entries(parsed)) {
+    // legacy U.S.-only files and storage use FIPS codes
+    const id = usToWorldId(rawId);
+    if (id !== rawId) resave = true;
     if (typeof val !== "string") {
       resave = true;
       continue;
@@ -220,15 +255,28 @@ export function parseFootprintData(text: string): FootprintData | null {
   }
 }
 
+function readStore(key: string): { data: FootprintData; resave: boolean } | null {
+  const raw = localStorage.getItem(key);
+  if (!raw) return null;
+  const parsed = JSON.parse(raw) as unknown;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+  return migrateParsedFootprint(parsed as Record<string, unknown>);
+}
+
 export function loadFootprintData(): FootprintData {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-    const { data, resave } = migrateParsedFootprint(parsed as Record<string, unknown>);
-    if (resave) saveFootprintData(data);
-    return data;
+    const current = readStore(STORAGE_KEY);
+    if (current) {
+      if (current.resave) saveFootprintData(current.data);
+      return current.data;
+    }
+    // first run of the world version: bring the U.S.-only records across
+    const legacy = readStore(LEGACY_US_STORAGE_KEY);
+    if (legacy) {
+      saveFootprintData(legacy.data);
+      return legacy.data;
+    }
+    return {};
   } catch {
     return {};
   }

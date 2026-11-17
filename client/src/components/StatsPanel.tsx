@@ -119,7 +119,7 @@ export default function StatsPanel({
           </span>
         </div>
         <div className="text-[10px] font-mono" style={{ color: "#9ca3af" }}>
-          {percentage}% of all 56 regions
+          {percentage}% of all {stats.total} regions
         </div>
       </div>
 
