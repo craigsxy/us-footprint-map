@@ -5,6 +5,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
+import { Analytics } from "@vercel/analytics/react";
 import { lazy, Suspense } from "react";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -52,6 +53,8 @@ function App() {
             }}
           />
           <Router />
+          {/* Vercel Web Analytics: page views only; does nothing until enabled in the Vercel project */}
+          <Analytics />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
